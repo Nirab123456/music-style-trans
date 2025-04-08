@@ -3,6 +3,7 @@ musdb18-separation/output_stems
 musdb18-separation/extract_stems.c
 musdb18-separation/extract_stems.cp312-win_amd64.pyd
 musdb18-separation/bin
+musdb18-separation/output_stems.zip
 musdb18-separation/bin/ffmpeg.exe
 musdb18-separation/bin/ffplay.exe
 musdb18-separation/bin/ffprobe.exe

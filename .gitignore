@@ -7,3 +7,5 @@ musdb18-separation/output_stems.zip
 musdb18-separation/bin/ffmpeg.exe
 musdb18-separation/bin/ffplay.exe
 musdb18-separation/bin/ffprobe.exe
+output_stems
+process_musdb18/__pycache__

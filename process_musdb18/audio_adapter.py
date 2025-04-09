@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset
 import torchaudio
 import torchaudio.transforms as T
+import cython 
 
 # -----------------------------------------------------------------------------
 # Component Map
@@ -72,28 +73,33 @@ def pitch_shift(spec: torch.Tensor, semitones: float = 0.0) -> torch.Tensor:
 # -----------------------------------------------------------------------------
 # AudioDatasetFolder
 # -----------------------------------------------------------------------------
+COMPONENT_MAP = ["mixture","drums","bass","other_accompaniment","vocals" ]
 
 class AudioDatasetFolder(Dataset):
     def __init__(
         self,
         csv_file: str,
+        
         audio_dir: Optional[str] = None,
-        components: Optional[List[str]] = None,
+        components: list[str] = None,
         sample_rate: int = 44100,
         duration: float = 20.0,
         transform=None,
+        is_track_id = True,
     ):
         """
         Args:
             csv_file (str): Path to CSV index file.
             audio_dir (str, optional): Base directory path to prepend to CSV file paths.
                 If None, file paths in the CSV are assumed to be absolute.
-            components (List[str], optional): List of component names to load.
+            components (List[str], required): List of component names to load.
                 Default loads all components in the COMPONENT_MAP.
             sample_rate (int): Sample rate used to load and (if necessary) resample audio.
             duration (float): Duration (in seconds) of audio to load from each file.
             transform (callable, optional): Optional transform to apply on the computed spectrogram.
+            is_track
         """
+        self.is_track_id = is_track_id
         self.sample_rate = sample_rate
         self.duration = duration
         self.transform = transform
@@ -101,7 +107,7 @@ class AudioDatasetFolder(Dataset):
         
         # Use all components by default
         if components is None:
-            self.components = list(COMPONENT_MAP.values())
+            raise ValueError("Please provide the list of components in csv.")
         else:
             self.components = components
             
@@ -119,8 +125,12 @@ class AudioDatasetFolder(Dataset):
                         sample_entry[comp] = row[comp]
                     else:
                         raise ValueError(f"Component '{comp}' not found in CSV or is empty.")
-                # Optionally, include metadata such as track_id if needed:
-                sample_entry['track_id'] = row.get('track_id', '')
+                    
+                if self.is_track_id:
+                    # Retrieve track_id from the first column
+                    first_column_key = list(row.keys())[1]  # Get the first column name
+                    sample_entry['track_id'] = row[first_column_key]
+
                 self.samples.append(sample_entry)
     
     def __len__(self):
@@ -152,7 +162,9 @@ class AudioDatasetFolder(Dataset):
                 spec = self.transform(spec)
             spectrograms[comp] = spec
         
-        # Return metadata if needed
-        spectrograms['track_id'] = sample_info.get('track_id', '')
+        if self.is_track_id:
+            # Return metadata if needed
+            spectrograms['track_id'] = sample_info.get('track_id', '')
+            
         return spectrograms
 

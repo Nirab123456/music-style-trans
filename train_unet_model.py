@@ -54,12 +54,9 @@ dataloaders: Dict[str, DataLoader] = {"train": train_loader, "val": val_loader}
 # Model Integration
 # -------------------------------
 # For source separation, the model is expected to take the mixture spectrogram as input,
-# and output separated source spectrograms corresponding to each target label.
-# Here we create a UNet-based model.
-# Instantiate the UNet with one input channel.
-model = UNet(in_channels=1)
-# Move the model to the chosen device.
-model = model.to(device)
+# and output separated source spectrograms corresponding to each target.
+# --- Since the mixture is stereo, we initialize the UNet with in_channels=2 ---
+model = UNet(in_channels=2)
 
 # Define the label names (target keys) for source separation.
 label_names = ["drums", "bass", "other_accompaniment", "vocals"]
@@ -68,6 +65,9 @@ label_names = ["drums", "bass", "other_accompaniment", "vocals"]
 # Here we assume that the decoder produces feature maps with 16 channels.
 for key in label_names:
     model.final_convs[key] = nn.Conv2d(16, 1, kernel_size=1)
+
+# IMPORTANT: Move the entire model to the device after adding the final conv layers.
+model = model.to(device)
 
 # -------------------------------
 # Loss Function, Optimizer, Scheduler

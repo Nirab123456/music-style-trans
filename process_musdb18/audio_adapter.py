@@ -1,7 +1,7 @@
 import os
 import csv
 from pathlib import Path
-from typing import Optional, Tuple, List, Union, Dict
+from typing import Optional, Tuple, List, Union, Dict, Callable
 
 import torch
 import torch.nn.functional as F
@@ -15,7 +15,7 @@ import cython
 # Simple Audio Loader
 # -----------------------------------------------------------------------------
 class SimpleAudioIO:
-    def load(self, path: Union[str, Path], sample_rate: Optional[int] = None, duration: Optional[float] = None) -> tuple[torch.Tensor, int]:
+    def load(self, path: Union[str, Path], sample_rate: Optional[int] = None, duration: Optional[float] = None) -> Tuple[torch.Tensor, int]:
         path_str: str = str(path)
         path_bytes: bytes = path_str.encode('utf-8') + b'\x00'
         c_path: cython.p_char = path_bytes  # C-style string (if needed for some C functions)
@@ -37,6 +37,8 @@ class SimpleAudioIO:
 
     def save(self, path: Union[str, Path], waveform: torch.Tensor, sample_rate: int):
         torchaudio.save(str(path), waveform, sample_rate)
+
+
 # -----------------------------------------------------------------------------
 # Utility Functions
 # -----------------------------------------------------------------------------
@@ -47,18 +49,20 @@ def to_stereo(waveform: torch.Tensor) -> torch.Tensor:
         return waveform.repeat(2, 1)
     return waveform[:2]
 
-def compute_spectrogram(waveform: torch.Tensor, n_fft: int = 2048, hop_length: int = 512) -> torch.Tensor:
+def compute_spectrogram(waveform: torch.Tensor, n_fft: cython.int = 2048, hop_length: cython.int = 512) -> torch.Tensor:
     """Computes the magnitude spectrogram."""
     window = torch.hann_window(n_fft, device=waveform.device)
     spec = torch.stft(waveform, n_fft=n_fft, hop_length=hop_length, window=window, return_complex=True)
     return spec.abs()
 
-def time_stretch(spec: torch.Tensor, factor: float = 1.0) -> torch.Tensor:
+# not being used 
+def time_stretch(spec: torch.Tensor, factor: cython.float = 1.0) -> torch.Tensor:
     _, f, t = spec.shape
     new_t = int(t * factor)
     stretched = F.interpolate(spec.unsqueeze(0), size=(f, new_t), mode='bilinear', align_corners=False).squeeze(0)
     return F.pad(stretched, (0, t - stretched.size(2))) if stretched.size(2) < t else stretched[:, :, :t]
 
+# not being used 
 def pitch_shift(spec: torch.Tensor, semitones: float = 0.0) -> torch.Tensor:
     factor = 2 ** (semitones / 12.0)
     _, f, t = spec.shape
@@ -74,13 +78,12 @@ class AudioDatasetFolder(Dataset):
     def __init__(
         self,
         csv_file: str,
-        
         audio_dir: Optional[str] = None,
-        components: list[str] = None,
+        components: List[str] = None,
         sample_rate: int = 44100,
         duration: float = 20.0,
-        transform=None,
-        is_track_id = True,
+        transform: Optional[Union[Callable, List[Callable]]] = None,
+        is_track_id: bool = True,
     ):
         """
         Args:
@@ -88,32 +91,43 @@ class AudioDatasetFolder(Dataset):
             audio_dir (str, optional): Base directory path to prepend to CSV file paths.
                 If None, file paths in the CSV are assumed to be absolute.
             components (List[str], required): List of component names to load.
-                Default loads all components in the COMPONENT_MAP.
-            sample_rate (int): Sample rate used to load and (if necessary) resample audio.
+            sample_rate (int): Sample rate used to load and, if necessary, resample audio.
             duration (float): Duration (in seconds) of audio to load from each file.
-            transform (callable, optional): Optional transform to apply on the computed spectrogram.
-            is_track_id(Boolean) : If true checks for second index of csv for a unique id cordinating to the filenames of all the components.
+            transform (callable or list/tuple of callables, optional): Optional transform(s) to apply on the computed spectrogram.
+            is_track_id (bool): If true, use the second index of CSV for a unique track id coordinating all component filenames.
         """
         self.is_track_id = is_track_id
         self.sample_rate = sample_rate
         self.duration = duration
-        self.transform = transform
         self.audio_io = SimpleAudioIO()
         
-        # Use all components by default
+        # Validate components
         if components is None:
             raise ValueError("Please provide the list of components in csv.")
         else:
             self.components = components
             
+        # Process transformation(s) into a list for uniform processing.
+        if transform is None:
+            self.transforms = []
+        elif callable(transform):
+            self.transforms = [transform]
+        elif isinstance(transform, (list, tuple)):
+            if all(callable(t) for t in transform):
+                self.transforms = list(transform)
+            else:
+                raise ValueError("All elements in transform must be callable.")
+        else:
+            raise TypeError("transform must be either a callable or a list/tuple of callables.")
+
         # Convert audio_dir to Path if provided
         self.audio_dir = Path(audio_dir) if audio_dir else None
-        
+
         self.samples = []
         with open(csv_file, newline='') as f:
             reader = csv.DictReader(f)
             for row in reader:
-                # Each row will have keys like 'track_id', 'subset', 'mixture', 'drums', etc.
+                # Each row should have keys like 'track_id', 'subset', 'mixture', 'drums', etc.
                 sample_entry = {}
                 for comp in self.components:
                     if comp in row and row[comp]:
@@ -122,8 +136,8 @@ class AudioDatasetFolder(Dataset):
                         raise ValueError(f"Component '{comp}' not found in CSV or is empty.")
                     
                 if self.is_track_id:
-                    # Retrieve track_id from the first column
-                    first_column_key = list(row.keys())[1]  # Get the first column name
+                    # Retrieve track_id from the first column (assuming first column is not metadata you want to ignore)
+                    first_column_key = list(row.keys())[1]  # adjust index if needed
                     sample_entry['track_id'] = row[first_column_key]
 
                 self.samples.append(sample_entry)
@@ -153,8 +167,9 @@ class AudioDatasetFolder(Dataset):
             waveform = to_stereo(waveform)
             spec = compute_spectrogram(waveform)
             
-            if self.transform:
-                spec = self.transform(spec)
+            # Apply all transformations sequentially
+            for t in self.transforms:
+                spec = t(spec)
             spectrograms[comp] = spec
         
         if self.is_track_id:
@@ -162,4 +177,3 @@ class AudioDatasetFolder(Dataset):
             spectrograms['track_id'] = sample_info.get('track_id', '')
             
         return spectrograms
-

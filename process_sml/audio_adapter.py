@@ -159,26 +159,26 @@ class AudioDatasetFolder(Dataset):
             
         return spectrograms
 
-# -----------------------------------------------------------------------------
-# Optional: DataLoader Getter Function
-# -----------------------------------------------------------------------------
+# # -----------------------------------------------------------------------------
+# # Optional: DataLoader Getter Function
+# # -----------------------------------------------------------------------------
 
-def get_dataloader(
-    csv_file: str,
-    audio_dir: Optional[str],
-    components: List[str],
-    batch_size: int = 8,
-    shuffle: bool = True,
-    transforms: Optional[List[Callable[[torch.Tensor], torch.Tensor]]] = None
-) -> DataLoader:
-    dataset = AudioDatasetFolder(
-        csv_file=csv_file,
-        audio_dir=audio_dir,
-        components=components,
-        sample_rate=DEFAULT_AUDIO_PARAMS["sample_rate"],
-        duration=20.0,
-        transform=transforms,
-        is_track_id=True,
-    )
-    return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=4)
+# def get_dataloader(
+#     csv_file: str,
+#     audio_dir: Optional[str],
+#     components: List[str],
+#     batch_size: int = 8,
+#     shuffle: bool = True,
+#     transforms: Optional[List[Callable[[torch.Tensor], torch.Tensor]]] = None
+# ) -> DataLoader:
+#     dataset = AudioDatasetFolder(
+#         csv_file=csv_file,
+#         audio_dir=audio_dir,
+#         components=components,
+#         sample_rate=DEFAULT_AUDIO_PARAMS["sample_rate"],
+#         duration=20.0,
+#         transform=transforms,
+#         is_track_id=True,
+#     )
+#     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=4)
 

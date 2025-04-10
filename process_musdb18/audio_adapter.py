@@ -8,19 +8,7 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset
 import torchaudio
 import torchaudio.transforms as T
-import cython 
 
-# -----------------------------------------------------------------------------
-# Component Map
-# -----------------------------------------------------------------------------
-
-COMPONENT_MAP = {
-    0: "mixture",
-    1: "drums",
-    2: "bass",
-    3: "other_accompaniment",
-    4: "vocals"
-}
 
 # -----------------------------------------------------------------------------
 # Simple Audio Loader
@@ -73,7 +61,6 @@ def pitch_shift(spec: torch.Tensor, semitones: float = 0.0) -> torch.Tensor:
 # -----------------------------------------------------------------------------
 # AudioDatasetFolder
 # -----------------------------------------------------------------------------
-COMPONENT_MAP = ["mixture","drums","bass","other_accompaniment","vocals" ]
 
 class AudioDatasetFolder(Dataset):
     def __init__(
@@ -97,7 +84,7 @@ class AudioDatasetFolder(Dataset):
             sample_rate (int): Sample rate used to load and (if necessary) resample audio.
             duration (float): Duration (in seconds) of audio to load from each file.
             transform (callable, optional): Optional transform to apply on the computed spectrogram.
-            is_track
+            is_track_id(Boolean) : If true checks for second index of csv for a unique id cordinating to the filenames of all the components.
         """
         self.is_track_id = is_track_id
         self.sample_rate = sample_rate

@@ -8,35 +8,28 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset
 import torchaudio
 import torchaudio.transforms as T
-import cython
 
 
 # -----------------------------------------------------------------------------
 # Simple Audio Loader
 # -----------------------------------------------------------------------------
+
 class SimpleAudioIO:
-    def load(self, path: Union[str, Path], sample_rate: Optional[int] = None, duration: Optional[float] = None) -> tuple[torch.Tensor, int]:
-        path_str: str = str(path)
-        path_bytes: bytes = path_str.encode('utf-8') + b'\x00'
-        c_path: cython.p_char = path_bytes  # C-style string (if needed for some C functions)
-
-        waveform, sr = torchaudio.load(c_path, normalize=True)
-
-        if duration is not None:
-            dur: cython.float = duration
-            sr_: cython.int = sr
-            num_samples: cython.int = cython.cast(cython.int, sr_ * dur)
+    def load(self, path: Union[str, Path], sample_rate: Optional[int] = None, duration: Optional[float] = None) -> Tuple[torch.Tensor, int]:
+        path = str(path)
+        waveform, sr = torchaudio.load(path, normalize=True)
+        if duration:
+            num_samples = int(sr * duration)
             waveform = waveform[:, :num_samples]
-
-        if sample_rate is not None and sr != sample_rate:
+        if sample_rate and sr != sample_rate:
             resampler = T.Resample(sr, sample_rate)
             waveform = resampler(waveform)
             sr = sample_rate
-
         return waveform, sr
 
     def save(self, path: Union[str, Path], waveform: torch.Tensor, sample_rate: int):
         torchaudio.save(str(path), waveform, sample_rate)
+
 # -----------------------------------------------------------------------------
 # Utility Functions
 # -----------------------------------------------------------------------------
@@ -49,8 +42,7 @@ def to_stereo(waveform: torch.Tensor) -> torch.Tensor:
 
 def compute_spectrogram(waveform: torch.Tensor, n_fft: int = 2048, hop_length: int = 512) -> torch.Tensor:
     """Computes the magnitude spectrogram."""
-    window = torch.hann_window(n_fft, device=waveform.device)
-    spec = torch.stft(waveform, n_fft=n_fft, hop_length=hop_length, window=window, return_complex=True)
+    spec = torch.stft(waveform, n_fft=n_fft, hop_length=hop_length, return_complex=True)
     return spec.abs()
 
 def time_stretch(spec: torch.Tensor, factor: float = 1.0) -> torch.Tensor:

@@ -92,7 +92,7 @@ class UNet(nn.Module):
         for key, conv in self.final_convs.items():
             outputs[key] = conv(x)
         return outputs
-
+    
 # -----------------------------------------------------------------------------
 # Training Function for Source Separation
 # -----------------------------------------------------------------------------
@@ -106,15 +106,15 @@ def train_model_source_separation(
     device: torch.device,
     log_dir: str,
     checkpoint_dir: Optional[str],
-    y_true_names: List[str],
-    y_pred_names: List[str],
+    input_name: str,
+    label_names: List[str],
     print_freq: int = 10,
 ) -> nn.Module:
     """
     Trains the model for a source separation task.
-    The model is assumed to accept a mixture spectrogram as input (under key "mixture") and output a dictionary
-    with keys corresponding to y_pred_names. The dataset dictionary contains ground truth spectrograms
-    with keys from y_true_names.
+    The model is assumed to accept an input spectrogram (under key input_name) and output a dictionary
+    with keys corresponding to label_names. The dataset dictionary contains ground truth spectrograms
+    with keys from label_names.
     
     Args:
         model: Source separation model.
@@ -126,9 +126,9 @@ def train_model_source_separation(
         device: Device for training.
         log_dir: TensorBoard log directory.
         checkpoint_dir: Directory to save model checkpoints.
-        y_true_names: List of keys for ground truth sources 
-                      (e.g., ["vocals_spectrogram", "accompaniment_spectrogram"]).
-        y_pred_names: List of keys that the model outputs.
+        input_name: Key in the batch for the input mixture.
+        label_names: List of keys for ground truth sources 
+                     (e.g., ["vocals_spectrogram", "accompaniment_spectrogram"]).
         print_freq: Frequency (in batches) to print updates.
     
     Returns:
@@ -154,15 +154,15 @@ def train_model_source_separation(
             data_loader = dataloaders[phase]
 
             for batch_idx, batch in enumerate(data_loader):
-                # Get the mixture input and ensure a channel dimension.
-                inputs = batch["mixture"]
+                # Get the input tensor using the provided input_name key and ensure a channel dimension.
+                inputs = batch[input_name]
                 if inputs.dim() == 3:
                     inputs = inputs.unsqueeze(1)
                 inputs = inputs.to(device)
 
-                # Get ground truth spectrograms for each source.
+                # Get ground truth spectrograms for each source using label_names.
                 y_true_dict = {}
-                for key in y_true_names:
+                for key in label_names:
                     y = batch[key]
                     if y.dim() == 3:
                         y = y.unsqueeze(1)
@@ -174,8 +174,8 @@ def train_model_source_separation(
                     outputs: Dict[str, torch.Tensor] = model(inputs)
                     # Compute loss as the sum of per-source losses.
                     loss = 0.0
-                    for y_pred_key, y_true_key in zip(y_pred_names, y_true_names):
-                        loss += criterion(outputs[y_pred_key], y_true_dict[y_true_key])
+                    for key in label_names:
+                        loss += criterion(outputs[key], y_true_dict[key])
 
                     if phase == "train":
                         loss.backward()
@@ -231,19 +231,19 @@ def test_model_source_separation(
     model: nn.Module,
     dataloader: DataLoader,
     device: torch.device,
-    y_true_names: List[str],
-    y_pred_names: List[str],
+    input_name: str,
+    label_names: List[str],
     criterion: nn.Module
 ) -> None:
     """
-    Evaluates the source separation model on a validation set and prints loss.
+    Evaluates the source separation model on a test/validation set and prints the loss.
     
     Args:
         model: Source separation model.
         dataloader: DataLoader for the test/validation set.
         device: Device for evaluation.
-        y_true_names: List of ground truth keys.
-        y_pred_names: List of keys that the model outputs.
+        input_name: Key in the batch for the input spectrogram.
+        label_names: List of ground truth keys which should match with model output keys.
         criterion: Loss function.
     """
     model.eval()
@@ -252,24 +252,25 @@ def test_model_source_separation(
 
     with torch.no_grad():
         for batch in dataloader:
-            # Get the mixture input and ensure it has a channel dimension.
-            inputs = batch["mixture"]
+            # Get the input tensor using the provided input_name key and ensure it has a channel dimension.
+            inputs = batch[input_name]
             if inputs.dim() == 3:
                 inputs = inputs.unsqueeze(1)
             inputs = inputs.to(device)
             
-            # Get ground truth spectrograms.
+            # Get ground truth spectrograms for each source from label_names.
             y_true = {}
-            for key in y_true_names:
+            for key in label_names:
                 y = batch[key]
                 if y.dim() == 3:
                     y = y.unsqueeze(1)
                 y_true[key] = y.to(device)
 
+            # Run the model forward pass.
             outputs: Dict[str, torch.Tensor] = model(inputs)
             loss = 0.0
-            for y_pred_key, y_true_key in zip(y_pred_names, y_true_names):
-                loss += criterion(outputs[y_pred_key], y_true[y_true_key])
+            for key in label_names:
+                loss += criterion(outputs[key], y_true[key])
             batch_size = inputs.size(0)
             running_loss += loss.item() * batch_size
             num_samples += batch_size

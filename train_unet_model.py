@@ -10,8 +10,8 @@ from torch.optim import lr_scheduler
 
 # Import our custom dataset and augmentation pipeline.
 from process_sml import AudioDatasetFolder, augmentation_pipeline
-# Import the UNet model from the training module.
-from train_sml import UNet , train_model_source_separation
+# Import the UNet model and the training function from the training module.
+from train_sml import UNet, train_model_source_separation
 import torch.nn as nn
 
 # Define the component map for the dataset.
@@ -53,19 +53,21 @@ dataloaders: Dict[str, DataLoader] = {"train": train_loader, "val": val_loader}
 # -------------------------------
 # Model Integration
 # -------------------------------
-# For source separation, we assume that the model takes a mix spectrogram as input
-# and outputs separated sources for each target.
+# For source separation, the model is expected to take the mixture spectrogram as input,
+# and output separated source spectrograms corresponding to each target label.
 # Here we create a UNet-based model.
-# Instantiate the UNet. Since the UNet in train_sml accepts only in_channels,
-# we omit any unsupported parameter (like out_channels).
+# Instantiate the UNet with one input channel.
 model = UNet(in_channels=1)
 # Move the model to the chosen device.
 model = model.to(device)
 
-# Prepare the final convolution layers for each source.
-# Based on the architecture, we assume the output feature maps have 16 channels.
-model.final_convs["vocals_spectrogram"] = nn.Conv2d(16, 1, kernel_size=1)
-model.final_convs["accompaniment_spectrogram"] = nn.Conv2d(16, 1, kernel_size=1)
+# Define the label names (target keys) for source separation.
+label_names = ["drums", "bass", "other_accompaniment", "vocals"]
+
+# Prepare the final convolution layers for each target output.
+# Here we assume that the decoder produces feature maps with 16 channels.
+for key in label_names:
+    model.final_convs[key] = nn.Conv2d(16, 1, kernel_size=1)
 
 # -------------------------------
 # Loss Function, Optimizer, Scheduler
@@ -77,8 +79,10 @@ optimizer = optim.Adam(model.parameters(), lr=1e-3)
 # Create a learning rate scheduler.
 scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 
-# (Now you can pass the dataloaders, model, optimizer, etc. to your training function.)
-# For example:
+# -------------------------------
+# Train the Model
+# -------------------------------
+# Here, the input key is "mixture" and label names are defined as above.
 best_model = train_model_source_separation(
     model=model,
     dataloaders=dataloaders,
@@ -89,7 +93,7 @@ best_model = train_model_source_separation(
     device=device,
     log_dir='./logs',
     checkpoint_dir='./checkpoints',
-    y_true_names=["vocals_spectrogram", "accompaniment_spectrogram"],
-    y_pred_names=["vocals_spectrogram", "accompaniment_spectrogram"],
+    input_name="mixture",  # use "mixture" for the input spectrogram from the batch
+    label_names=label_names,  # list of target keys for separated sources
     print_freq=10,
 )

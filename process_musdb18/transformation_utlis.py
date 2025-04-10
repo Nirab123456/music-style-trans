@@ -1,13 +1,12 @@
-
 import torch
 import cython 
 import random
-from typing import Tuple 
+from typing import Tuple
 import torch.nn.functional as F
+
 # -----------------------------------------------------------------------------
 # Utility Functions
 # -----------------------------------------------------------------------------
-
 
 def to_stereo(waveform: torch.Tensor) -> torch.Tensor:
     """Ensure the waveform is stereo (2 channels). If mono, duplicate the channel."""
@@ -34,8 +33,9 @@ def random_time_crop(spectrogram: torch.Tensor, target_time: int) -> torch.Tenso
     Randomly crop the time dimension of the spectrogram.
     
     Args:
-        spectrogram: Tensor of shape (channels, freq, time) or (freq, time)
+        spectrogram: Tensor of shape (channels, freq, time) or (freq, time).
         target_time: Number of time frames to crop.
+        
     Returns:
         Cropped spectrogram.
     """
@@ -64,6 +64,7 @@ def random_time_stretch(
     Args:
         spectrogram: Tensor of shape (channels, freq, time).
         factor_range: Tuple specifying the minimum and maximum stretch factors.
+        
     Returns:
         Time-stretched spectrogram of approximately the original time dimension.
     """
@@ -91,6 +92,7 @@ def random_pitch_shift(
     Args:
         spectrogram: Tensor of shape (channels, freq, time).
         shift_range: Tuple specifying the minimum and maximum pitch shift (in semitones).
+        
     Returns:
         Pitch-shifted spectrogram.
     """
@@ -109,17 +111,83 @@ def random_pitch_shift(
     else:
         return shifted[:, :freq, :]
 
+# --- New Transformations ---
+
+def random_noise(spectrogram: torch.Tensor, noise_std: float = 0.05) -> torch.Tensor:
+    """
+    Add random Gaussian noise to the spectrogram.
+
+    Args:
+        spectrogram: Input spectrogram.
+        noise_std: Standard deviation factor for noise relative to the maximum spectrogram value.
+        
+    Returns:
+        Noisy spectrogram.
+    """
+    noise_scale: float = noise_std * spectrogram.max().item()
+    noise = torch.randn_like(spectrogram) * noise_scale
+    return spectrogram + noise
+
+def random_distortion(
+    spectrogram: torch.Tensor,
+    gamma_range: Tuple[float, float] = (0.8, 1.2)
+) -> torch.Tensor:
+    """
+    Apply a random nonlinear (gamma) distortion to the spectrogram.
+
+    Args:
+        spectrogram: Input spectrogram (assumed to be non-negative).
+        gamma_range: Range for the gamma exponent.
+        
+    Returns:
+        Gamma-distorted spectrogram.
+    """
+    gamma: float = random.uniform(*gamma_range)
+    # Apply a power-law (gamma) transformation.
+    return torch.pow(spectrogram, gamma)
+
+def random_volume(
+    spectrogram: torch.Tensor,
+    volume_range: Tuple[float, float] = (0.8, 1.2)
+) -> torch.Tensor:
+    """
+    Randomly scale the amplitude (volume) of the spectrogram.
+
+    Args:
+        spectrogram: Input spectrogram.
+        volume_range: Tuple indicating the minimum and maximum scaling factors.
+        
+    Returns:
+        Volume-scaled spectrogram.
+    """
+    scale: float = random.uniform(*volume_range)
+    return spectrogram * scale
+
+# --- Composite Augmentation Pipeline ---
+
 def augmentation_pipeline(spec: torch.Tensor) -> torch.Tensor:
     """
-    Composite transformation to apply data augmentation:
-      1. Random time crop to T frames.
-      2. Random time stretch.
-      3. Random pitch shift.
+    Composite transformation to apply data augmentation.
+    
+    Sequentially applies:
+      1. Random time crop (to 512 time frames)
+      2. Random time stretch (with a factor between 0.9 and 1.1)
+      3. Random pitch shift (with a shift between -1 and 1 semitones)
+      4. Random noise addition
+      5. Random nonlinear distortion (gamma correction)
+      6. Random volume scaling
+    
+    Args:
+        spec: Input spectrogram tensor.
+    Returns:
+        Augmented spectrogram.
     """
-    # Random time crop: crop to DEFAULT_AUDIO_PARAMS["T"] time frames.
     spec = random_time_crop(spec, target_time=512)
-    # Random time stretch.
     spec = random_time_stretch(spec, factor_range=(0.9, 1.1))
-    # Random pitch shift.
     spec = random_pitch_shift(spec, shift_range=(-1.0, 1.0))
+    spec = random_noise(spec, noise_std=0.05)
+    spec = random_distortion(spec, gamma_range=(0.8, 1.2))
+    spec = random_volume(spec, volume_range=(0.8, 1.2))
+
+
     return spec

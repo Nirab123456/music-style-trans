@@ -182,32 +182,3 @@ def get_dataloader(
     )
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=4)
 
-# -----------------------------------------------------------------------------
-# Example Augmentation Pipeline
-# -----------------------------------------------------------------------------
-
-# # -----------------------------------------------------------------------------
-# # Main (Example Usage)
-# # -----------------------------------------------------------------------------
-# if __name__ == "__main__":
-#     # Example usage:
-#     csv_file = "path/to/your_index.csv"  # Update with your CSV path.
-#     audio_dir = "path/to/audio_files"    # Update with your audio directory.
-#     components = [DEFAULT_AUDIO_PARAMS["mix_name"]] + DEFAULT_AUDIO_PARAMS["instrument_list"]
-
-#     # Create DataLoader with augmentation pipeline.
-#     loader = get_dataloader(
-#         csv_file=csv_file,
-#         audio_dir=audio_dir,
-#         components=components,
-#         batch_size=8,
-#         shuffle=True,
-#         transforms=[augmentation_pipeline]
-#     )
-
-#     # Iterate over a single batch.
-#     for batch in loader:
-#         input_dict, output_dict = batch, {}  # In this simplified version, the dataset returns one dictionary.
-#         # Here you can print shapes or further process the batch.
-#         print("Batch sample keys:", list(input_dict.keys()))
-#         break

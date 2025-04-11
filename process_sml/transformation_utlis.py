@@ -129,32 +129,3 @@ class Compose:
             x = transform(x)
         return x
 
-# ------------------------------
-# Composite Augmentation Pipeline
-# ------------------------------
-
-def get_augmentation_pipeline() -> Compose:
-    return Compose([
-        RandomTimeCrop(target_time=512),
-        RandomTimeStretch(factor_range=(0.9, 1.1)),
-        RandomPitchShift(shift_range=(-1.0, 1.0)),
-        RandomNoise(noise_std=0.05),
-        RandomDistortion(gamma_range=(0.8, 1.2)),
-        RandomVolume(volume_range=(0.8, 1.2))
-    ])
-
-# ------------------------------
-# Example Usage of the Compose Pipeline
-# ------------------------------
-if __name__ == "__main__":
-    # Suppose we have a dummy spectrogram with shape (1, 1025, 600)
-    # (1 channel, 1025 frequency bins, 600 time frames)
-    dummy_spec = torch.rand(1, 1025, 600)
-    print("Original shape:", dummy_spec.shape)
-    
-    # Create the augmentation pipeline
-    augment = get_augmentation_pipeline()
-    
-    # Apply the pipeline
-    augmented_spec = augment(dummy_spec)
-    print("Augmented shape:", augmented_spec.shape)

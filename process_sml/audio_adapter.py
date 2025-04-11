@@ -18,22 +18,6 @@ import torchaudio.transforms as T
 
 # Import transformation functions and Compose object from transformation_utlis.
 from .transformation_utlis import to_stereo, compute_spectrogram
-# It is assumed that transformation_utlis.py now contains classes for each transform
-# along with a Compose class (similar to torchvision.transforms.Compose).
-
-# ----------------------------------------------------------------------------- 
-# Default Audio Parameters
-# -----------------------------------------------------------------------------
-DEFAULT_AUDIO_PARAMS: Dict[str, Any] = {
-    "instrument_list": ["vocals", "accompaniment"],
-    "mix_name": "mix",
-    "sample_rate": 44100,
-    "frame_length": 4096,
-    "frame_step": 1024,
-    "T": 512,           # Target time frames for crop (e.g., 11.88s if using frame_step=1024)
-    "F": 1024,          # Target frequency bins
-    "n_channels": 2,    # Expected number of channels (stereo)
-}
 
 # ----------------------------------------------------------------------------- 
 # Simple Audio Loader
@@ -76,7 +60,7 @@ class AudioDatasetFolder(Dataset):
         csv_file: str,
         audio_dir: Optional[str] = None,
         components: List[str] = None,
-        sample_rate: int = 44100,
+        sample_rate: int = 16000, #default samplerate for musdb18
         duration: float = 20.0,
         input_name: Optional[str] = None,
         perriferal_name: Optional[List[str]] = None,

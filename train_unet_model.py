@@ -1,5 +1,4 @@
 from torch.utils.data import DataLoader
-import matplotlib.pyplot as plt
 import torch
 import random
 from typing import Dict
@@ -9,15 +8,25 @@ import torch.optim as optim
 from torch.optim import lr_scheduler
 
 # Import our custom dataset and augmentation pipeline.
-from process_sml import AudioDatasetFolder, augmentation_pipeline
+from process_sml import AudioDatasetFolder, Compose, RandomTimeCrop, RandomTimeStretch, RandomPitchShift, RandomNoise, RandomDistortion, RandomVolume 
 # Import the UNet model and the training function from the training module.
 from train_sml import UNet, train_model_source_separation
 import torch.nn as nn
 
+augmentation_pipeline = Compose([
+    RandomTimeCrop(target_time=512),
+    # RandomTimeStretch(factor_range=(0.9, 1.1)),
+    RandomPitchShift(shift_range=(-1.0, 1.0)),
+    # RandomNoise(noise_std=0.05),
+    RandomDistortion(gamma_range=(0.8, 1.2)),
+    RandomVolume(volume_range=(0.8, 1.2))
+])
+
+
+
 if __name__ == '__main__':
     # Define the component map for the dataset.
     COMPONENT_MAP = ["mixture", "drums", "bass", "other_accompaniment", "vocals"]
-    IS_TRACK_ID = True
 
     # Set random seeds for reproducibility.
     torch.manual_seed(42)
@@ -31,13 +40,12 @@ if __name__ == '__main__':
         csv_file='output_stems/musdb18_index_20250408_121813.csv',
         audio_dir='.',  # adjust as needed
         components=COMPONENT_MAP,
-        sample_rate=44100,
+        sample_rate=16000,
         duration=5.0,
-        is_track_id=IS_TRACK_ID,
+        transform=augmentation_pipeline,  # list of transforms
+        is_track_id=True,
+        input_name= "mixture"
     )
-
-    # Create a loader for visualization or debugging if needed.
-    loader_multi = DataLoader(dataset_multi, batch_size=32, shuffle=False)
 
     # Split dataset into train and validation (e.g., 80/20 split).
     dataset_size = len(dataset_multi)
@@ -53,16 +61,13 @@ if __name__ == '__main__':
     # -------------------------------
     # Model Integration
     # -------------------------------
-    # For source separation, the model is expected to take the mixture spectrogram as input,
-    # and output separated source spectrograms corresponding to each target.
-    # --- Since the mixture is stereo, we initialize the UNet with in_channels=2 ---
+
     model = UNet(in_channels=2)
 
     # Define the label names (target keys) for source separation.
     label_names = ["drums", "bass", "other_accompaniment", "vocals"]
 
     # Prepare the final convolution layers for each target output.
-    # Here we assume that the decoder produces feature maps with 16 channels.
     for key in label_names:
         model.final_convs[key] = nn.Conv2d(16, 1, kernel_size=1)
 
@@ -97,5 +102,3 @@ if __name__ == '__main__':
         label_names=label_names,  # list of target keys for separated sources
         print_freq=10,
     )
-
-    # (Optional) Test or visualize the best_model as needed.

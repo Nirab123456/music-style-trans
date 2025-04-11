@@ -1,1 +1,4 @@
 01-Extensive transformation of inputs cause nan Loss - have to find better data argumentationpipeline.
+Update-01- Even applying 3 transformation dosent cause any issue.
+pre-sollution-01 - Applying any random 3 transformation at a time.
+code-improvement(optional)-01 - Torchvisionstyle transformation for ease of use.

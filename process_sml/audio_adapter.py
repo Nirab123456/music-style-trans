@@ -77,6 +77,8 @@ class AudioDatasetFolder(Dataset):
         components: List[str] = None,
         sample_rate: int = 44100,
         duration: float = 20.0,
+        input_name: Optional[str] = None,
+        perriferal_name: Optional[List[str]] = None,
         transform: Optional[Union[Callable[[torch.Tensor], torch.Tensor], List[Callable[[torch.Tensor], torch.Tensor]]]] = None,
         is_track_id: bool = True,
     ) -> None:
@@ -87,19 +89,26 @@ class AudioDatasetFolder(Dataset):
             components: List of component names to load.
             sample_rate: Sample rate used for audio loading and resampling.
             duration: Duration (in seconds) of audio to load from each file.
+            input_name: Key in the dataset for the primary input spectrogram.
+            perriferal_name: List of keys for peripheral sources (optional).
             transform: Optional transform(s) to apply on the computed spectrogram.
-            is_track_id: If true, use a track identifier from the CSV.
+            is_track_id: If true, include a track identifier from the CSV.
         """
         self.is_track_id = is_track_id
         self.sample_rate = sample_rate
         self.duration = duration
         self.audio_io = SimpleAudioIO()
-        
+
+        # Save the specific keys for transformation control.
+        self.input_name = input_name
+        self.perriferal_name = perriferal_name
+
         if components is None:
             raise ValueError("Please provide the list of components in CSV.")
         else:
             self.components = components
-            
+
+        # Determine how to handle transformations.
         if transform is None:
             self.transforms: List[Callable[[torch.Tensor], torch.Tensor]] = []
         elif callable(transform):
@@ -128,35 +137,50 @@ class AudioDatasetFolder(Dataset):
                     keys = list(row.keys())
                     sample_entry['track_id'] = row[keys[1]] if len(keys) > 1 else ""
                 self.samples.append(sample_entry)
-    
+
     def __len__(self) -> int:
         return len(self.samples)
-    
+
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         """
         Returns a dictionary where keys are component names (e.g., 'mix', 'drums', etc.)
         and values are the computed spectrogram tensors.
+        If an `input_name` or any key in `perriferal_name` is provided, transformations
+        are applied only on those components; if not provided, transformations are applied on all.
         """
         sample_info: Dict[str, str] = self.samples[idx]
         spectrograms: Dict[str, torch.Tensor] = {}
-        
+
         for comp in self.components:
             file_path_str: str = sample_info[comp]
             file_path = Path(file_path_str)
             if self.audio_dir and not file_path.is_absolute():
                 file_path = self.audio_dir / file_path
-            
+
             waveform, sr = self.audio_io.load(file_path, sample_rate=self.sample_rate, duration=self.duration)
             waveform = to_stereo(waveform)
             spec = compute_spectrogram(waveform)
-            
-            for transform in self.transforms:
-                spec = transform(spec)
+
+            # Decide whether to apply the defined transformations based on available keys:
+            # If either input_name or perriferal_name is provided, then apply transforms only if:
+            #   comp == input_name OR comp is in perriferal_name.
+            # Otherwise, if none are provided, apply transforms to all components.
+            apply_transforms = False
+            if self.input_name or self.perriferal_name:
+                if self.input_name is not None and comp == self.input_name:
+                    apply_transforms = True
+                if self.perriferal_name is not None and comp in self.perriferal_name:
+                    apply_transforms = True
+            else:
+                apply_transforms = True
+
+            if apply_transforms:
+                for transform in self.transforms:
+                    spec = transform(spec)
             spectrograms[comp] = spec
-        
+
         if self.is_track_id:
             spectrograms['track_id'] = sample_info.get('track_id', '')
             
         return spectrograms
-
 

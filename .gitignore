@@ -11,3 +11,4 @@ output_stems
 process_musdb18/__pycache__
 *copy.*
 logs
+checkpoints

@@ -1,0 +1,1 @@
+01-Extensive transformation of inputs cause nan Loss - have to find better data argumentationpipeline.

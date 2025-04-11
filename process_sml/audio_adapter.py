@@ -3,8 +3,8 @@
 """
 This module implements an audio data preprocessing pipeline using PyTorch.
 Data preprocessing includes audio loading, spectrogram computation, cropping,
-and data augmentation (random time crop, time stretch, and pitch shift). The
-dataset yields a dictionary of spectrograms computed from the input audio files.
+and data augmentation using a Compose-style transformation pipeline.
+The dataset yields a dictionary of spectrograms computed from the input audio files.
 """
 
 import csv
@@ -15,11 +15,15 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 import torchaudio
 import torchaudio.transforms as T
-from .transformation_utlis import to_stereo , compute_spectrogram 
-# -----------------------------------------------------------------------------
+
+# Import transformation functions and Compose object from transformation_utlis.
+from .transformation_utlis import to_stereo, compute_spectrogram
+# It is assumed that transformation_utlis.py now contains classes for each transform
+# along with a Compose class (similar to torchvision.transforms.Compose).
+
+# ----------------------------------------------------------------------------- 
 # Default Audio Parameters
 # -----------------------------------------------------------------------------
-
 DEFAULT_AUDIO_PARAMS: Dict[str, Any] = {
     "instrument_list": ["vocals", "accompaniment"],
     "mix_name": "mix",
@@ -31,7 +35,7 @@ DEFAULT_AUDIO_PARAMS: Dict[str, Any] = {
     "n_channels": 2,    # Expected number of channels (stereo)
 }
 
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # Simple Audio Loader
 # -----------------------------------------------------------------------------
 class SimpleAudioIO:
@@ -46,8 +50,6 @@ class SimpleAudioIO:
         and resamples it if required.
         """
         path_str: str = str(path)
-
-        # Use path_str since torchaudio.load accepts a string path.
         waveform, sr = torchaudio.load(path_str, normalize=True)
 
         if duration is not None:
@@ -65,10 +67,9 @@ class SimpleAudioIO:
         """Saves the given waveform to the specified path."""
         torchaudio.save(str(path), waveform, sample_rate)
 
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------- 
 # AudioDatasetFolder
 # -----------------------------------------------------------------------------
-
 class AudioDatasetFolder(Dataset):
     def __init__(
         self,
@@ -79,7 +80,8 @@ class AudioDatasetFolder(Dataset):
         duration: float = 20.0,
         input_name: Optional[str] = None,
         perriferal_name: Optional[List[str]] = None,
-        transform: Optional[Union[Callable[[torch.Tensor], torch.Tensor], List[Callable[[torch.Tensor], torch.Tensor]]]] = None,
+        transform: Optional[Union[Callable[[torch.Tensor], torch.Tensor],
+                                  List[Callable[[torch.Tensor], torch.Tensor]]]] = None,
         is_track_id: bool = True,
     ) -> None:
         """
@@ -91,7 +93,9 @@ class AudioDatasetFolder(Dataset):
             duration: Duration (in seconds) of audio to load from each file.
             input_name: Key in the dataset for the primary input spectrogram.
             perriferal_name: List of keys for peripheral sources (optional).
-            transform: Optional transform(s) to apply on the computed spectrogram.
+            transform: Optional transformation or a Compose-style transformation that
+                       applies to the computed spectrogram. If provided, and if either input_name
+                       or perriferal_name is specified, the transform will be applied only to those keys.
             is_track_id: If true, include a track identifier from the CSV.
         """
         self.is_track_id = is_track_id
@@ -109,6 +113,8 @@ class AudioDatasetFolder(Dataset):
             self.components = components
 
         # Determine how to handle transformations.
+        # Accept either a single callable (which may be an instance of Compose)
+        # or a list/tuple of callables.
         if transform is None:
             self.transforms: List[Callable[[torch.Tensor], torch.Tensor]] = []
         elif callable(transform):
@@ -146,7 +152,7 @@ class AudioDatasetFolder(Dataset):
         Returns a dictionary where keys are component names (e.g., 'mix', 'drums', etc.)
         and values are the computed spectrogram tensors.
         If an `input_name` or any key in `perriferal_name` is provided, transformations
-        are applied only on those components; if not provided, transformations are applied on all.
+        are applied only on those components; otherwise, transformations are applied on all.
         """
         sample_info: Dict[str, str] = self.samples[idx]
         spectrograms: Dict[str, torch.Tensor] = {}
@@ -161,9 +167,9 @@ class AudioDatasetFolder(Dataset):
             waveform = to_stereo(waveform)
             spec = compute_spectrogram(waveform)
 
-            # Decide whether to apply the defined transformations based on available keys:
+            # Decide whether to apply the transforms.
             # If either input_name or perriferal_name is provided, then apply transforms only if:
-            #   comp == input_name OR comp is in perriferal_name.
+            #   comp equals input_name OR comp is in perriferal_name.
             # Otherwise, if none are provided, apply transforms to all components.
             apply_transforms = False
             if self.input_name or self.perriferal_name:
@@ -174,7 +180,10 @@ class AudioDatasetFolder(Dataset):
             else:
                 apply_transforms = True
 
-            if apply_transforms:
+            if apply_transforms and self.transforms:
+                # If we have a Compose-like transform (as a callable), you could simply
+                # apply it once. Otherwise, if we have a list, iterate through each.
+                # Here, for generality, we loop over self.transforms.
                 for transform in self.transforms:
                     spec = transform(spec)
             spectrograms[comp] = spec
@@ -183,4 +192,3 @@ class AudioDatasetFolder(Dataset):
             spectrograms['track_id'] = sample_info.get('track_id', '')
             
         return spectrograms
-

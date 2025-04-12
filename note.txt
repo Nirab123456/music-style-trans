@@ -2,6 +2,8 @@
 Update-01- Even applying 3 transformation dosent cause any issue.
 pre-sollution-01 - Applying any random 3 transformation at a time.
 code-improvement(optional)-01 - Torchvisionstyle transformation for ease of use.
+RandomNoise- transformation might be the underlying issue of nan loss -01
+
 02-  output of the Unet verient for musdb18 dataset is sterio duel chenal   
 for key in label_names:
         model.final_convs[key] = nn.Conv2d(16, 2, kernel_size=1)

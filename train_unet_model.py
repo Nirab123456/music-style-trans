@@ -8,20 +8,28 @@ import torch.optim as optim
 from torch.optim import lr_scheduler
 
 # Import our custom dataset and augmentation pipeline.
-from process_sml import AudioDatasetFolder, Compose, RandomTimeCrop, RandomTimeStretch, RandomPitchShift, RandomNoise, RandomDistortion, RandomVolume 
+from process_sml import AudioDatasetFolder, Compose, RandomSubsetCompose,RandomTimeCrop, RandomTimeStretch, RandomPitchShift, RandomNoise, RandomDistortion, RandomVolume 
 # Import the UNet model and the training function from the training module.
 from train_sml import UNet, train_model_source_separation
 import torch.nn as nn
 
-augmentation_pipeline = Compose([
+# augmentation_pipeline = Compose([
+#     RandomTimeCrop(target_time=512),
+#     # RandomTimeStretch(factor_range=(0.9, 1.1)),
+#     RandomPitchShift(shift_range=(-1.0, 1.0)),
+#     # RandomNoise(noise_std=0.05),
+#     RandomDistortion(gamma_range=(0.8, 1.2)),
+#     RandomVolume(volume_range=(0.8, 1.2))
+# ])
+
+augmentation_pipeline = RandomSubsetCompose([
     RandomTimeCrop(target_time=512),
-    # RandomTimeStretch(factor_range=(0.9, 1.1)),
+    RandomTimeStretch(factor_range=(0.9, 1.1)),
     RandomPitchShift(shift_range=(-1.0, 1.0)),
     # RandomNoise(noise_std=0.05),
     RandomDistortion(gamma_range=(0.8, 1.2)),
     RandomVolume(volume_range=(0.8, 1.2))
-])
-
+],num_transforms=4)
 
 
 if __name__ == '__main__':
@@ -69,7 +77,7 @@ if __name__ == '__main__':
 
     # Prepare the final convolution layers for each target output.
     for key in label_names:
-        model.final_convs[key] = nn.Conv2d(16, 1, kernel_size=1)
+        model.final_convs[key] = nn.Conv2d(16, 2, kernel_size=1)
 
     # IMPORTANT: Move the entire model to the device after adding the final conv layers.
     model = model.to(device)

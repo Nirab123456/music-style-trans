@@ -2,6 +2,7 @@ import torch
 import random
 from typing import Callable, List, Tuple
 import torch.nn.functional as F
+import torchaudio
 
 # ------------------------------
 # Basic Utility Functions
@@ -11,21 +12,26 @@ def to_stereo(waveform: torch.Tensor) -> torch.Tensor:
     """Ensure the waveform is stereo (2 channels). If mono, duplicate the channel."""
     return waveform.repeat(2, 1) if waveform.size(0) == 1 else waveform[:2]
 
+# we can also add additional arguments to compute_spectrogram
 def compute_spectrogram(
     waveform: torch.Tensor,
     n_fft: int = 2048,
     hop_length: int = 512
 ) -> torch.Tensor:
-    """Compute the magnitude spectrogram using torch.stft."""
+    """Compute the magnitude spectrogram using torchaudio.functional.spectrogram."""
     window = torch.hann_window(n_fft, device=waveform.device)
-    spec: torch.Tensor = torch.stft(
-        waveform,
+    spec = torchaudio.functional.spectrogram(
+        waveform=waveform,
+        pad=0,
+        window=window,
         n_fft=n_fft,
         hop_length=hop_length,
-        window=window,
-        return_complex=True,
+        win_length=n_fft,
+        power=None,  # because we're using return_complex=True
+        normalized=False,
     )
-    return spec.abs()
+    return spec.abs()  # or .abs()**2 for power
+
 
 # ------------------------------
 # Individual Transformation Classes
@@ -128,3 +134,26 @@ class Compose:
             x = transform(x)
         return x
 
+# ------------------------------
+# RandomSubsetCompose Class for Transformations
+# ------------------------------
+
+class RandomSubsetCompose:
+    def __init__(self, transforms: List[Callable[[torch.Tensor], torch.Tensor]], num_transforms: int):
+        """
+        Randomly selects `num_transforms` from the list and applies them in random order.
+        
+        Args:
+            transforms: List of transformation callables.
+            num_transforms: Number of transformations to apply each time.
+        """
+        if num_transforms > len(transforms):
+            raise ValueError("num_transforms cannot be greater than the number of available transforms.")
+        self.transforms = transforms
+        self.num_transforms = num_transforms
+
+    def __call__(self, x: torch.Tensor) -> torch.Tensor:
+        selected_transforms = random.sample(self.transforms, self.num_transforms)
+        for transform in selected_transforms:
+            x = transform(x)
+        return x

@@ -15,6 +15,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 import torchaudio
 import torchaudio.transforms as T
+import torchaudio.functional as tf
 
 # Import transformation functions and Compose object from transformation_utlis.
 from .transformation_utlis import to_stereo, compute_spectrogram
@@ -34,7 +35,7 @@ class SimpleAudioIO:
         and resamples it if required.
         """
         path_str: str = str(path)
-        waveform, sr = torchaudio.load(path_str, normalize=True)
+        waveform, sr = torchaudio.load(path_str, normalize=True) #waveform is a pytorch tensor
 
         if duration is not None:
             num_samples: int = int(sr * duration)

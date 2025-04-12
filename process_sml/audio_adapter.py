@@ -151,7 +151,7 @@ class AudioDatasetFolder(Dataset):
             waveform, sr = self.audio_io.load(file_path, sample_rate=self.sample_rate, duration=self.duration)
             waveform = to_stereo(waveform)
             spec = compute_spectrogram(waveform)
-
+            spec = spec.abs()
             # Decide whether to apply the transforms.
             # If either input_name or perriferal_name is provided, then apply transforms only if:
             #   comp equals input_name OR comp is in perriferal_name.

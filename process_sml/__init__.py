@@ -1,2 +1,2 @@
 from .audio_adapter import AudioDatasetFolder
-from .transformation_utlis import Compose, RandomTimeCrop, RandomTimeStretch, RandomPitchShift, RandomNoise, RandomDistortion, RandomVolume,RandomSubsetCompose
+from .transformation_utlis import Compose, RandomTimeCrop, RandomTimeStretch, RandomPitchShift, RandomNoise, RandomDistortion, RandomVolume,RandomSubsetCompose,compute_waveform

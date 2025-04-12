@@ -27,11 +27,38 @@ def compute_spectrogram(
         n_fft=n_fft,
         hop_length=hop_length,
         win_length=n_fft,
-        power=None,  # because we're using return_complex=True
+        power=None,  
         normalized=False,
     )
-    return spec.abs()  # or .abs()**2 for power
+    # shape_of_spec = spec.shape
+    # print(f"shape of raw spectogram is : {shape_of_spec}")
+    return spec  # .abs() or .abs()**2 for power
 
+
+def compute_waveform(
+    mag_spec: torch.Tensor,
+    n_fft: int = 2048,
+    hop_length: int = 512,
+    num_iters: int = 32
+) -> torch.Tensor:
+    """Reconstruct waveform from magnitude spectrogram using Griffin-Lim."""
+    window = torch.hann_window(n_fft).to(mag_spec.device)
+
+    spec_power = mag_spec ** 2  # Griffin-Lim uses power spectrogram
+
+    waveform = torchaudio.functional.griffinlim(
+        specgram=spec_power,
+        window=window,
+        n_fft=n_fft,
+        win_length=n_fft,
+        hop_length=hop_length,
+        power=2.0,
+        n_iter=num_iters,
+        momentum=0.99,
+        length=None,         # Let Griffin-Lim infer length
+        rand_init=True       # Start with random phase
+    )
+    return waveform
 
 # ------------------------------
 # Individual Transformation Classes

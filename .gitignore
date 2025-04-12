@@ -12,3 +12,5 @@ process_musdb18/__pycache__
 *copy.*
 logs
 checkpoints
+sample_audio
+pre_saved_tensors

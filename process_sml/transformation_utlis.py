@@ -30,8 +30,7 @@ def compute_spectrogram(
         power=None,  
         normalized=False,
     )
-    # shape_of_spec = spec.shape
-    # print(f"shape of raw spectogram is : {shape_of_spec}")
+
     return spec  # .abs() or .abs()**2 for power
 
 

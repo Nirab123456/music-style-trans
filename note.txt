@@ -8,3 +8,5 @@ RandomNoise- transformation might be the underlying issue of nan loss -01
 for key in label_names:
         model.final_convs[key] = nn.Conv2d(16, 2, kernel_size=1)
 
+03- I can save a series of noise ternsformation tensor at the start of the training loop to reduce redundent conversion 
+        from *.wav to tensor : can reduce the computation of transformation dramatically

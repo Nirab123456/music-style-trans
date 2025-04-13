@@ -122,6 +122,7 @@ class RandomPitchShift:
         else:
             return shifted[:, :freq, :]
 
+#old RandomNoise class using torch.rand_like()
 class RandomNoise:
     def __init__(self, noise_std: float = 0.05):
         self.noise_std = noise_std
@@ -130,6 +131,9 @@ class RandomNoise:
         noise_scale: float = self.noise_std * spec.max().item()
         noise = torch.randn_like(spec) * noise_scale
         return spec + noise
+
+
+
 
 class RandomDistortion:
     def __init__(self, gamma_range: Tuple[float, float] = (0.8, 1.2)):

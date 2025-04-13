@@ -1,6 +1,6 @@
 # GLOBAL CONFIGARATIONS
 SAMPLE_RATE = 16000
-DURATION = 20.0
+DURATION = 5.0
 INPUT_NAME = None
 PERRIFERAL_NAME = None
 IS_TRACK_ID = True
@@ -48,4 +48,5 @@ def update_config(
 #RANDOM-NOISE CONFIGARATIONS
 NOISE_WAV_DIR = "./sample_noise"
 NOISE_TENSOR_SAVE_DIR = "./sample_noise/pre_saved_tensors"
+NOISE_TENSOR_NAME = "shuffled_big_noise_tensor.pt"
 CHUNK_DURATION_RECONSTRUCTED = 1

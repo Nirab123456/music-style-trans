@@ -125,15 +125,20 @@ class RandomPitchShift:
 
 #old RandomNoise class using torch.rand_like()
 
-# def random_noise_crop(tensor, crop_duration=5.0, sample_rate=16000):
-#     crop_size = int(crop_duration * sample_rate)
-#     max_start = tensor.shape[1] - crop_size
-#     start = random.randint(0, max_start)
-#     return tensor[:, start:start + crop_size]
+def random_noise_crop():
+    """Uses the tensorpath defined on save_big_noise_spec_meg_tensor """
+    
+    tensor_path = f"{global_initial_config.NOISE_TENSOR_SAVE_DIR}/{global_initial_config.NOISE_TENSOR_NAME}"
+    crop_duration = global_initial_config.DURATION
+    sample_rate = global_initial_config.SAMPLE_RATE
 
 
-# big_tensor = "../pre_saved_tensors/shuffled_big_noise_tensor.pt"
-# big_tensor = torch.load(big_tensor)
+    tensor = torch.load(tensor_path)
+    crop_size = int(crop_duration * sample_rate)
+    max_start = tensor.shape[1] - crop_size
+    start = random.randint(0, max_start)
+    return tensor[:, start:start + crop_size]
+
 
 class RandomNoise:
     def __init__(self, noise_std: float = 0.05):

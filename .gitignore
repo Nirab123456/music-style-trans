@@ -13,4 +13,5 @@ process_musdb18/__pycache__
 logs
 checkpoints
 sample_audio
-pre_saved_tensors
+/pre_saved_tensors
+all_sample_noise

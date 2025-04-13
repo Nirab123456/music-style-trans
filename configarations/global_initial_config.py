@@ -1,4 +1,4 @@
-# config.py
+# GLOBAL CONFIGARATIONS
 SAMPLE_RATE = 16000
 DURATION = 20.0
 INPUT_NAME = None
@@ -41,3 +41,11 @@ def update_config(
         COMPONENTS = components
     if csv_file is not None:
         CSV_FILE = csv_file
+
+
+
+
+#RANDOM-NOISE CONFIGARATIONS
+NOISE_WAV_DIR = "./sample_noise"
+NOISE_TENSOR_SAVE_DIR = "./sample_noise/pre_saved_tensors"
+CHUNK_DURATION_RECONSTRUCTED = 1

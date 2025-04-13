@@ -3,6 +3,7 @@ import random
 from typing import Callable, List, Tuple
 import torch.nn.functional as F
 import torchaudio
+from configarations import global_initial_config
 
 # ------------------------------
 # Basic Utility Functions
@@ -123,6 +124,17 @@ class RandomPitchShift:
             return shifted[:, :freq, :]
 
 #old RandomNoise class using torch.rand_like()
+
+# def random_noise_crop(tensor, crop_duration=5.0, sample_rate=16000):
+#     crop_size = int(crop_duration * sample_rate)
+#     max_start = tensor.shape[1] - crop_size
+#     start = random.randint(0, max_start)
+#     return tensor[:, start:start + crop_size]
+
+
+# big_tensor = "../pre_saved_tensors/shuffled_big_noise_tensor.pt"
+# big_tensor = torch.load(big_tensor)
+
 class RandomNoise:
     def __init__(self, noise_std: float = 0.05):
         self.noise_std = noise_std
@@ -131,7 +143,6 @@ class RandomNoise:
         noise_scale: float = self.noise_std * spec.max().item()
         noise = torch.randn_like(spec) * noise_scale
         return spec + noise
-
 
 
 

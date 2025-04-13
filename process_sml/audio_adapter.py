@@ -19,6 +19,20 @@ import torchaudio.functional as tf
 
 # Import transformation functions and Compose object from transformation_utlis.
 from .transformation_utlis import to_stereo, compute_spectrogram
+from configarations import global_initial_config
+# -----------------------------------------------------------------------------
+# CONFIGURATION (Global Variables to be shared across modules)
+# -----------------------------------------------------------------------------
+USER_INPUT = {
+    "sample_rate": 44000,
+    "duration": 20.0,
+    "input_name": "mixture",
+    "perriferal_name": ["drums", "bass"],
+    "is_track_id": True,
+    "audio_dir": ".",
+    "components": ["mixture", "drums", "bass"],
+    "csv_file": "dataset_index.csv"
+}
 
 # ----------------------------------------------------------------------------- 
 # Simple Audio Loader
@@ -91,11 +105,23 @@ class AudioDatasetFolder(Dataset):
         # Save the specific keys for transformation control.
         self.input_name = input_name
         self.perriferal_name = perriferal_name
+        self.audio_dir = Path(audio_dir) if audio_dir else None
 
         if components is None:
             raise ValueError("Please provide the list of components in CSV.")
         else:
             self.components = components
+
+        # declaration of initial global variables
+        USER_INPUT["input_name"]= input_name
+        USER_INPUT["audio_dir"] = audio_dir
+        USER_INPUT["components"] = components
+        USER_INPUT["csv_file"] = csv_file
+        USER_INPUT["duration"] = duration
+        USER_INPUT["is_track_id"]=is_track_id
+        USER_INPUT["perriferal_name"]=perriferal_name
+        USER_INPUT["sample_rate"]=sample_rate
+        global_initial_config.update_config(**USER_INPUT)
 
         # Determine how to handle transformations.
         # Accept either a single callable (which may be an instance of Compose)
@@ -112,7 +138,6 @@ class AudioDatasetFolder(Dataset):
         else:
             raise TypeError("transform must be either a callable or a list/tuple of callables.")
 
-        self.audio_dir = Path(audio_dir) if audio_dir else None
 
         self.samples: List[Dict[str, str]] = []
         with open(csv_file, newline='') as f:
@@ -128,7 +153,7 @@ class AudioDatasetFolder(Dataset):
                     keys = list(row.keys())
                     sample_entry['track_id'] = row[keys[1]] if len(keys) > 1 else ""
                 self.samples.append(sample_entry)
-
+        
     def __len__(self) -> int:
         return len(self.samples)
 

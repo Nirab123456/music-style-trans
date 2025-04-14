@@ -12,3 +12,6 @@ for key in label_names:
         from *.wav to tensor : can reduce the computation of transformation dramatically
 
 04 - random noise should have the shape of the input tensor insted to avoid clash between other transformation.
+
+05 - pre and post tansor transformation randomvollume , randompitchshift, randomtimecrop, randomtimestrech should be applied on waveform insted of spectogram tensor.
+random noise and random distorsion and other can be added to transform spectogram.

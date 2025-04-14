@@ -140,6 +140,7 @@ class RandomTimeStretch:
         else:
             return stretched[:, :, :time]
 
+# #old Random pitch shift 
 class RandomPitchShift:
     def __init__(self, shift_range: Tuple[float, float] = (-1.0, 1.0)):
         self.shift_range = shift_range
@@ -160,6 +161,32 @@ class RandomPitchShift:
         else:
             return shifted[:, :freq, :]
         
+# class RandomPitchShift:
+#     def __init__(
+#         self,
+#         sample_rate: int = global_initial_config.SAMPLE_RATE,
+#         n_steps: int = 2,            # small semitone shift
+#         bins_per_octave: int = 12,
+#         n_fft: int = 2048,
+#     ):
+#         self.sample_rate = sample_rate
+#         self.n_steps = n_steps
+#         self.bins_per_octave = bins_per_octave
+#         self.n_fft = n_fft
+
+#     def __call__(self, waveform: torch.Tensor) -> torch.Tensor:
+#         # waveform should be of shape [channels, time]
+#         shifted_waveform = torchaudio.functional.pitch_shift(
+#             waveform,
+#             sample_rate=self.sample_rate,
+#             n_steps=self.n_steps,
+#             bins_per_octave=self.bins_per_octave,
+#             n_fft=self.n_fft
+#         )
+#         return shifted_waveform
+    
+# old RandomNoise class using torch.rand_like()
+
 class RandomNoise:
     def __init__(self, noise_std: float = 0.05):
         self.noise_std = noise_std

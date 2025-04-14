@@ -2,8 +2,10 @@ import torch
 import random
 from typing import Callable, List, Tuple
 import torch.nn.functional as F
+import torchaudio.functional as tf 
 import torchaudio
-from configarations import global_initial_config
+import configarations.global_initial_config as global_initial_config
+from torchvision.transforms import RandomCrop
 
 # ------------------------------
 # Basic Utility Functions
@@ -125,21 +127,6 @@ class RandomPitchShift:
 
 #old RandomNoise class using torch.rand_like()
 
-def random_noise_crop():
-    """Uses the tensorpath defined on save_big_noise_spec_meg_tensor """
-    
-    tensor_path = f"{global_initial_config.NOISE_TENSOR_SAVE_DIR}/{global_initial_config.NOISE_TENSOR_NAME}"
-    crop_duration = global_initial_config.DURATION
-    sample_rate = global_initial_config.SAMPLE_RATE
-
-
-    tensor = torch.load(tensor_path)
-    crop_size = int(crop_duration * sample_rate)
-    max_start = tensor.shape[1] - crop_size
-    start = random.randint(0, max_start)
-    return tensor[:, start:start + crop_size]
-
-
 class RandomNoise:
     def __init__(self, noise_std: float = 0.05):
         self.noise_std = noise_std
@@ -148,6 +135,55 @@ class RandomNoise:
         noise_scale: float = self.noise_std * spec.max().item()
         noise = torch.randn_like(spec) * noise_scale
         return spec + noise
+
+
+def random_crop_3d(
+    tensor: torch.Tensor,
+    size: torch.Size
+) -> torch.Tensor:
+    """
+    Randomly crop a tensor to the given size.
+
+    Args:
+        tensor (torch.Tensor): The input tensor to crop.
+        size (torch.Size): The desired output size.
+
+    Returns:
+        torch.Tensor: The randomly cropped tensor.
+    """
+    first_dim : int = size[1]
+    second_dim : int = size[2]
+
+    crop_size = (first_dim,second_dim)
+    # Create the transform
+    transform = RandomCrop(size=crop_size)
+
+    # Apply it directly
+    cropped_tensor = transform(tensor)
+
+    return cropped_tensor
+
+#updated Random noise for absolute realworld noise simulation 
+class RandomAbsoluteNoise:
+    def __init__(
+        self,
+        noise_std: float = 0.05,
+        noise_tensor_path=f"{global_initial_config.NOISE_TENSOR_SAVE_DIR}/{global_initial_config.NOISE_TENSOR_NAME}"
+    ):
+        """updated Random noise for absolute realworld noise simulation"""
+        self.noise_std = noise_std
+        self.noise_tensor = torch.load(noise_tensor_path)
+
+    def __call__(self, spec: torch.Tensor) -> torch.Tensor:
+        shape_of_cur_spec: torch.Size = spec.shape
+
+        noise_tensor: torch.Tensor = random_crop_3d(self.noise_tensor, shape_of_cur_spec)
+
+        # Scale noise by noise_std and add to spec directly
+        wav: torch.Tensor = spec + noise_tensor * self.noise_std
+        # sape = wav.shape
+
+        return wav
 
 
 

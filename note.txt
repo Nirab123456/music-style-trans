@@ -10,3 +10,5 @@ for key in label_names:
 
 03- I can save a series of noise ternsformation tensor at the start of the training loop to reduce redundent conversion 
         from *.wav to tensor : can reduce the computation of transformation dramatically
+
+04 - random noise should have the shape of the input tensor insted to avoid clash between other transformation.

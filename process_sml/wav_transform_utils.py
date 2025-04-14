@@ -50,3 +50,54 @@ class RandomVolume_wav:
 
 
         return self.transform(waveform)
+
+def random_crop_2d(
+    tensor: torch.Tensor,
+    size: int
+) -> torch.Tensor:
+    """
+    Randomly crop a 2D tensor along the time axis to the given size.
+
+    Args:
+        tensor (torch.Tensor): The input tensor to crop. Expected shape [C, T].
+        size (int): The desired time length after cropping.
+
+    Returns:
+        torch.Tensor: The randomly cropped tensor.
+    """
+    if tensor.ndim != 2:
+        raise ValueError("Expected a 2D tensor with shape [C, T]")
+    
+    c, t = tensor.shape
+    if size > t:
+        raise ValueError(f"Crop size {size} is larger than tensor time dimension {t}")
+
+    start = random.randint(0, t - size)
+    end = start + size
+    cropped_tensor = tensor[:, start:end]
+
+    return cropped_tensor
+
+
+# #updated Random noise for absolute realworld noise simulation 
+class RandomAbsoluteNoise_wav:
+    def __init__(
+        self,
+        noise_std: float = 0.05,
+        noise_tensor_path=f"{global_initial_config.NOISE_TENSOR_SAVE_DIR}/{global_initial_config.NOISE_TENSOR_NAME}"
+    ):
+        """updated Random noise for absolute realworld noise simulation"""
+        self.noise_std = noise_std
+        self.noise_tensor = torch.load(noise_tensor_path)
+
+    def __call__(self, waveform: torch.Tensor) -> torch.Tensor:
+        length_of_first_dim : int = waveform.shape[1]
+
+        noise_tensor: torch.Tensor = random_crop_2d(self.noise_tensor, length_of_first_dim)
+
+        # Scale noise by noise_std and add to spec directly
+        wav: torch.Tensor = waveform + (noise_tensor * self.noise_std)
+        # sape = wav.shape
+
+        return wav
+

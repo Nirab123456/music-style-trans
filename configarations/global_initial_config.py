@@ -48,5 +48,5 @@ def update_config(
 #RANDOM-NOISE CONFIGARATIONS
 NOISE_WAV_DIR = "./sample_noise"
 NOISE_TENSOR_SAVE_DIR = "./sample_noise/pre_saved_tensors"
-NOISE_TENSOR_NAME = "shuffled_big_noise_tensor.pt"
+NOISE_TENSOR_NAME = "shuffled_big_raw_noise_tensor.pt"
 CHUNK_DURATION_RECONSTRUCTED = 1

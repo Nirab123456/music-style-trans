@@ -12,7 +12,7 @@ from process_sml import (
     AudioDatasetFolder, Compose, RandomSubsetCompose,
     RandomTimeCrop, RandomTimeStretch, RandomPitchShift, 
     RandomNoise, RandomDistortion, RandomVolume , RandomAbsoluteNoise,ComputeSpectrogram,
-    RandomPitchShift_wav,RandomVolume_wav)
+    RandomPitchShift_wav,RandomVolume_wav,RandomAbsoluteNoise_wav)
 # Import the UNet model and the training function from the training module.
 from train_sml import UNet, train_model_source_separation
 import torch.nn as nn
@@ -28,7 +28,7 @@ import torch.nn as nn
 
 augmentation_pipeline = Compose([
 
-    RandomVolume_wav()
+    RandomAbsoluteNoise_wav()
 
 ])
 

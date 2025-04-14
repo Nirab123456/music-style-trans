@@ -49,7 +49,8 @@ def save_big_noise_spec_meg_tensor(
     # Shuffle and stack
     random.shuffle(all_chunks)
     big_tensor = torch.cat(all_chunks, dim=1)  # [2, total_samples]
-    spectogram_big_T = compute_spectrogram(big_tensor)
-    spectogram_big_T = spectogram_big_T.abs()
+    # spectogram_big_T = compute_spectrogram(big_tensor)
+    # spectogram_big_T = spectogram_big_T.abs()
+
     # Save
-    torch.save(spectogram_big_T, os.path.join(save_dir, noise_tensor_name))
+    torch.save(big_tensor, os.path.join(save_dir, noise_tensor_name))

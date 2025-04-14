@@ -11,7 +11,8 @@ from torch.optim import lr_scheduler
 from process_sml import (
     AudioDatasetFolder, Compose, RandomSubsetCompose,
     RandomTimeCrop, RandomTimeStretch, RandomPitchShift, 
-    RandomNoise, RandomDistortion, RandomVolume , RandomAbsoluteNoise,ComputeSpectrogram)
+    RandomNoise, RandomDistortion, RandomVolume , RandomAbsoluteNoise,ComputeSpectrogram,
+    RandomPitchShift_wav,RandomVolume_wav)
 # Import the UNet model and the training function from the training module.
 from train_sml import UNet, train_model_source_separation
 import torch.nn as nn
@@ -26,13 +27,9 @@ import torch.nn as nn
 # ])
 
 augmentation_pipeline = Compose([
-    # ComputeSpectrogram(),
-    # RandomTimeCrop(target_time=512),
-    # RandomTimeStretch(factor_range=(0.9, 1.1)),
-    # RandomPitchShift(),
-    RandomAbsoluteNoise(noise_std=0.05),
-    RandomDistortion(gamma_range=(0.8, 1.2)),
-    RandomVolume(volume_range=(0.8, 1.2))
+
+    RandomVolume_wav()
+
 ])
 
 

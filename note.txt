@@ -15,3 +15,6 @@ for key in label_names:
 
 05 - pre and post tansor transformation randomvollume , randompitchshift, randomtimecrop, randomtimestrech should be applied on waveform insted of spectogram tensor.
 random noise and random distorsion and other can be added to transform spectogram.
+
+        UPDATE 05- All the functions are being shifted for wav form except some explecit finction.
+        process_sml\wav_transform_utils.py : RandomPitchShift_wav (highly Ram expensive can be optimized reeverting to previous)

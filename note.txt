@@ -18,3 +18,5 @@ random noise and random distorsion and other can be added to transform spectogra
 
         UPDATE 05- All the functions are being shifted for wav form except some explecit finction.
         process_sml\wav_transform_utils.py : RandomPitchShift_wav (highly Ram expensive can be optimized reeverting to previous)
+05 - issue update : saparated wav based and spectogram based transformation  and building a pipeline to transform the waveform
+        -CLASSES WITH MEMORY ISSUE IN wav_transform_utils : RandomPitchShift_wav,RandomSpeed_wav

@@ -15,12 +15,10 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 import torchaudio
 import torchaudio.transforms as T
-import torchaudio.functional as tf
 
 # Import transformation functions and Compose object from transformation_utlis.
-from transformation_utlis import to_stereo, compute_spectrogram
 from configarations import global_initial_config
-from transformation_pipeline import MyPipeline
+from .transformation_pipeline import MyPipeline
 # -----------------------------------------------------------------------------
 # CONFIGURATION (Global Variables to be shared across modules)
 # -----------------------------------------------------------------------------

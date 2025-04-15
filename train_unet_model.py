@@ -34,9 +34,11 @@ augmentation_pipeline = Compose([
     # RandomFade_wav(),
 
     #spec transformation 
+    # RandomTimeStretch_spec(),
+
+    #this two working properly together
     # RandomFrequencyMasking_spec(),
-    # RandomTimeMasking_spec(),
-    RandomTimeStretch_spec(),
+    RandomTimeMasking_spec(),
 
 ])
 
@@ -59,7 +61,7 @@ if __name__ == '__main__':
         components=COMPONENT_MAP,
         sample_rate=16000,
         duration=5.0,
-        transform=augmentation_pipeline,  # list of transforms
+        spec_transform=augmentation_pipeline,  # list of transforms
         is_track_id=True,
         input_name= "mixture"
     )

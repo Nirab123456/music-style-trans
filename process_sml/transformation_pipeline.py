@@ -6,15 +6,15 @@ import torchaudio.transforms as T
 import random
 
 # Import helper functions and individual transform classes.
-from transformation_utlis import compute_spectrogram, to_stereo
-from wav_transform_utils import (
+from .transformation_utlis import compute_spectrogram, to_stereo
+from .wav_transform_utils import (
     RandomPitchShift_wav,
     RandomVolume_wav,
     RandomAbsoluteNoise_wav,
     RandomSpeed_wav,
     RandomFade_wav
 )
-from spec_transform import (
+from .spec_transform import (
     RandomFrequencyMasking_spec,
     RandomTimeMasking_spec,
     RandomTimeStretch_spec
@@ -23,7 +23,6 @@ from spec_transform import (
 class MyPipeline(nn.Module):
     def __init__(self,
                  use_complex_for_time_stretch: bool = True,
-                 stft_params: dict = None,
                  wav_transforms: nn.Module = None,
                  spec_transforms: nn.Module = None):
         """
@@ -62,15 +61,7 @@ class MyPipeline(nn.Module):
 
         self.use_complex = use_complex_for_time_stretch
 
-        # Set default STFT parameters.
-        if stft_params is None:
-            self.n_fft = 512
-            self.hop_length = 256
-            self.window = torch.hann_window(self.n_fft)
-        else:
-            self.n_fft = stft_params.get('n_fft', 512)
-            self.hop_length = stft_params.get('hop_length', 256)
-            self.window = stft_params.get('window', torch.hann_window(self.n_fft))
+
 
     def forward(self, waveform: torch.Tensor) -> torch.Tensor:
         """
@@ -96,14 +87,8 @@ class MyPipeline(nn.Module):
         if self.use_complex and any(
             isinstance(t, RandomTimeStretch_spec) for t in self.spec_transforms
         ):
-            # Compute a complex spectrogram.
-            spec = torch.stft(
-                waveform,
-                n_fft=self.n_fft,
-                hop_length=self.hop_length,
-                window=self.window,
-                return_complex=True
-            )
+            spec = compute_spectrogram(waveform)
+
         else:
             spec = compute_spectrogram(waveform)
             spec = spec.abs()

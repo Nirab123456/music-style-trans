@@ -75,42 +75,54 @@ class RandomTimeMasking_spec:
 
         # Create the transform
         transform = T.TimeMasking(time_mask_param=time_mask_param, iid_masks=self.iid_masks, p=p)
+        t_spec = transform(spectrogram)
 
         # Apply it
-        return transform(spectrogram)
+        return t_spec
 
 class RandomTimeStretch_spec:
     def __init__(
         self,
-        n_freq: int = 201,
-        hop_length: int = None,
-        rate_range: Tuple[float, float] = (0.8, 1.25)
+        n_freq: int = (2048 // 2) +1 ,  # Mandatory: set this to match your STFT output, e.g., (n_fft // 2) + 1.
+        hop_length: int = 512,  # Hop length for STFT (as integer).
+        rate_range: Tuple[float, float] = (0.1, 0.9)
     ):
         """
         Random time-stretching for complex spectrograms.
-
+        
         Args:
-            n_freq (int): Number of frequency bins (from STFT). Must match the input spectrogram.
-            hop_length (int or None): Hop length for STFT. Default is n_fft // 2.
+            n_freq (int): Number of frequency bins from the STFT. For a given n_fft, n_freq = n_fft // 2 + 1.
+            hop_length (int): Hop length used during STFT.
             rate_range (Tuple[float, float]): Range of time-stretching rates to randomly choose from.
         """
         self.n_freq = n_freq
-        self.hop_length = 2048,
+        self.hop_length = hop_length   # Removed trailing comma so that hop_length is an integer.
         self.rate_range = rate_range
+        
+        # Create the TimeStretch transform from torchaudio.
+        # Ensure that n_freq passed here matches the number of frequency bins in your STFT.
         self.transform = T.TimeStretch(n_freq=n_freq, hop_length=hop_length)
 
     def __call__(self, spec: torch.Tensor) -> torch.Tensor:
         """
         Apply random time-stretching to a complex spectrogram.
-
+        
         Args:
-            spec (torch.Tensor): Complex-valued spectrogram (e.g., shape [channel, freq, time, complex=2]).
-
+            spec (torch.Tensor): Complex-valued spectrogram with shape [channel, n_freq, time]
+                                  (note: if using torch.stft with return_complex=True, the shape is
+                                  (channels, n_freq, time)).
         Returns:
             torch.Tensor: Time-stretched spectrogram.
         """
-        # Randomly choose the stretching rate
+        # Ensure that the input spec is complex.
+        if not torch.is_complex(spec):
+            raise ValueError("Input spectrogram must be a complex tensor for TimeStretch.")
+        
+        # Randomly choose the time stretching rate.
         rate = random.uniform(*self.rate_range)
+        # Compute the transformed spectrogram.
+        trans_spec = self.transform(spec, rate)
 
-        # Apply time-stretching
-        return self.transform(spec, rate)
+
+        # Apply time stretching using the transform.
+        return trans_spec

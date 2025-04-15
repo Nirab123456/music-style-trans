@@ -51,6 +51,20 @@ class RandomVolume_wav:
 
         return self.transform(waveform)
 
+#random spped is causing mamorry issue 
+class RandomSpeed_wav:
+    def __init__(self,speed_range: Tuple[float, float] = (0.8, 1.2)):
+        self.speed_range = speed_range
+
+    def __call__(self, waveform:torch.Tensor) -> torch.Tensor:
+        scale : float = random.uniform(*self.speed_range)
+        # Instantiate the Speed transform with the original frequency and random factor.
+        speed_transform = torchaudio.transforms.Speed(global_initial_config.SAMPLE_RATE, scale)
+        
+        # Apply the transform. Note that Speed returns a tuple: (transformed_waveform, new_lengths).
+        transformed_waveform, _ = speed_transform(waveform)
+        return transformed_waveform
+
 def random_crop_2d(
     tensor: torch.Tensor,
     size: int
@@ -78,7 +92,7 @@ def random_crop_2d(
 
     return cropped_tensor
 
-
+#Modarate optimized 
 # #updated Random noise for absolute realworld noise simulation 
 class RandomAbsoluteNoise_wav:
     def __init__(

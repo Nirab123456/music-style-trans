@@ -12,7 +12,7 @@ from process_sml import (
     AudioDatasetFolder, Compose, RandomSubsetCompose,
     RandomTimeCrop, RandomTimeStretch, RandomPitchShift, 
     RandomNoise, RandomDistortion, RandomVolume , RandomAbsoluteNoise,ComputeSpectrogram,
-    RandomPitchShift_wav,RandomVolume_wav,RandomAbsoluteNoise_wav)
+    RandomPitchShift_wav,RandomVolume_wav,RandomAbsoluteNoise_wav,RandomSpeed_wav)
 # Import the UNet model and the training function from the training module.
 from train_sml import UNet, train_model_source_separation
 import torch.nn as nn
@@ -28,7 +28,10 @@ import torch.nn as nn
 
 augmentation_pipeline = Compose([
 
-    RandomAbsoluteNoise_wav()
+    RandomVolume_wav(),
+    # RandomSpeed_wav(),
+    RandomAbsoluteNoise_wav(),
+
 
 ])
 
@@ -63,8 +66,8 @@ if __name__ == '__main__':
     train_indices, val_indices = indices[:split], indices[split:]
     train_sampler = torch.utils.data.SubsetRandomSampler(train_indices)
     val_sampler = torch.utils.data.SubsetRandomSampler(val_indices)
-    train_loader = DataLoader(dataset_multi, batch_size=8, sampler=train_sampler, num_workers=4)
-    val_loader = DataLoader(dataset_multi, batch_size=8, sampler=val_sampler, num_workers=4)
+    train_loader = DataLoader(dataset_multi, batch_size=8, sampler=train_sampler, num_workers=8)
+    val_loader = DataLoader(dataset_multi, batch_size=8, sampler=val_sampler, num_workers=8)
     dataloaders: Dict[str, DataLoader] = {"train": train_loader, "val": val_loader}
 
     # -------------------------------

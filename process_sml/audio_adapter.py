@@ -181,24 +181,19 @@ class AudioDatasetFolder(Dataset):
             # If either input_name or perriferal_name is provided, then apply transforms only if:
             #   comp equals input_name OR comp is in perriferal_name.
             # Otherwise, if none are provided, apply transforms to all components.
-            apply_transforms = False
-            if self.input_name or self.perriferal_name:
-                if self.input_name is not None and comp == self.input_name:
-                    apply_transforms = True
-                if self.perriferal_name is not None and comp in self.perriferal_name:
-                    apply_transforms = True
-            else:
-                apply_transforms = True
-
+            # Apply transforms selectively
+            apply_transforms = (
+                (self.input_name is not None and comp == self.input_name) or
+                (self.perriferal_name is not None and comp in self.perriferal_name) or
+                (self.input_name is None and self.perriferal_name is None)
+            )
             if apply_transforms and self.transforms:
-                # If we have a Compose-like transform (as a callable), you could simply
-                # apply it once. Otherwise, if we have a list, iterate through each.
-                # Here, for generality, we loop over self.transforms.
                 for transform in self.transforms:
                     waveform = transform(waveform)
-
-            spec = compute_spectrogram(waveform)
-            spec = spec.abs()
+            
+            spec = compute_spectrogram(waveform).abs()
+            # Optionally delete waveform if not needed further
+            del waveform  
             spectrograms[comp] = spec
 
         if self.is_track_id:

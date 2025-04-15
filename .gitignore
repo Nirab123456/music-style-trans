@@ -15,3 +15,5 @@ checkpoints
 sample_audio
 /pre_saved_tensors
 all_sample_noise
+/process_sml/t_trans_pipe.py
+

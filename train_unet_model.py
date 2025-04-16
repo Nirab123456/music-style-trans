@@ -25,14 +25,9 @@ import torch.nn as nn
 # ])
 
 augmentation_pipeline = Compose([
-    # RandomPitchShift_wav(),
-    # RandomVolume_wav(),
-    # RandomSpeed_wav(),
-    # RandomAbsoluteNoise_wav(),
-    # RandomFade_wav(),
 
     #spec transformation 
-    # RandomTimeStretch_spec(),
+    RandomTimeStretch_spec(),
 
     #this two working properly together
     RandomFrequencyMasking_spec(),
@@ -68,7 +63,7 @@ if __name__ == '__main__':
         sample_rate=16000,
         duration=5.0,
         spec_transform=augmentation_pipeline,  # list of transforms
-        wav_transform=arg_p,
+        # wav_transform=arg_p,
         is_track_id=True,
         input_name= "mixture"
     )

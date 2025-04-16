@@ -3,7 +3,9 @@ import torch
 import torch.nn as nn
 import torchaudio
 import torchaudio.transforms as T
-import random
+import typing
+import torch.nn.functional as F
+
 
 # Import helper functions and individual transform classes.
 from .transformation_utlis import compute_spectrogram, to_stereo
@@ -20,10 +22,47 @@ from .spec_transform import (
     RandomTimeStretch_spec
 )
 
+def adjust_spec_shape(spec: torch.Tensor, target_shape: typing.Tuple[int, int]) -> torch.Tensor:
+    """
+    Adjust the last two dimensions of a spectrogram tensor.
+    
+    Args:
+        spec (torch.Tensor): Spectrogram of shape [channels, n_freq, time].
+        target_shape (Tuple[int, int]): The desired (n_freq, time) shape.
+    
+    Returns:
+        torch.Tensor: Adjusted spectrogram.
+    """
+    target_shape = target_shape
+    current_shape = spec.shape[-2:]
+    if current_shape == target_shape:
+        return spec
+
+    # spec.unsqueeze(0) adds a batch dimension so that interpolate works on 4D data.
+    spec_adjusted = F.interpolate(
+        spec.unsqueeze(0),  # shape: [1, channels, n_freq, time]
+        size=target_shape,
+        mode='bilinear',
+        align_corners=False
+    )
+    # Remove the added batch dimension
+    return spec_adjusted.squeeze(0)
+
+def get_shape_first_sample(waveform):
+    waveform = to_stereo(waveform)
+    spec = compute_spectrogram(waveform)
+    spec = spec.abs()
+    shape = spec.shape
+
+    return shape
+    
+
 class MyPipeline(nn.Module):
     def __init__(self,
                  wav_transforms: nn.Module = None,
-                 spec_transforms: nn.Module = None):
+                 spec_transforms: nn.Module = None,
+                 shape_of_untransformed_size:torch.Size = None,
+                 ):
         """
         A unified pipeline that applies both waveform- and spectrogram-level transforms.
         
@@ -35,6 +74,7 @@ class MyPipeline(nn.Module):
             spec_transforms (nn.Module, optional): A module or sequential chain of spectrogram-level transforms.
         """
         super(MyPipeline, self).__init__()
+        self.shape_of_first_nontransformed_spec_sample = shape_of_untransformed_size
 
         # Set default waveform transforms if none provided.
         if wav_transforms is None:
@@ -98,6 +138,8 @@ class MyPipeline(nn.Module):
                 raise ValueError("RandomTimeStretch_spec requires a complex spectrogram. "
                                  "Set use_complex_for_time_stretch=True and provide proper STFT parameters.")
             spec = transform(spec)
+        spec =adjust_spec_shape(spec,self.shape_of_first_nontransformed_spec_sample[-2:])
+
 
         return spec
 

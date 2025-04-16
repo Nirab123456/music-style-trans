@@ -2,8 +2,6 @@ import torch
 import random
 from typing import Tuple
 import torchaudio.transforms as T
-import configarations
-import configarations.global_initial_config
 import torch.nn as nn 
 
 class RandomFrequencyMasking_spec(nn.Module):
@@ -129,6 +127,7 @@ class RandomTimeStretch_spec(nn.Module):
         rate = random.uniform(*self.rate_range)
         # Compute the transformed spectrogram.
         trans_spec = self.transform(spec, rate)
+        trans_spec = trans_spec.abs()
 
 
         # Apply time stretching using the transform.

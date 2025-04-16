@@ -18,7 +18,7 @@ import torchaudio.transforms as T
 
 # Import transformation functions and Compose object from transformation_utlis.
 from configarations import global_initial_config
-from .transformation_pipeline import MyPipeline
+from .transformation_pipeline import MyPipeline , get_shape_first_sample
 # -----------------------------------------------------------------------------
 # CONFIGURATION (Global Variables to be shared across modules)
 # -----------------------------------------------------------------------------
@@ -83,6 +83,7 @@ class AudioDatasetFolder(Dataset):
         spec_transform: Optional[Union[Callable[[torch.Tensor], torch.Tensor],
                                   List[Callable[[torch.Tensor], torch.Tensor]]]] = None,
         is_track_id: bool = True,
+
     ) -> None:
         """
         Args:
@@ -123,14 +124,7 @@ class AudioDatasetFolder(Dataset):
         USER_INPUT["perriferal_name"]=perriferal_name
         USER_INPUT["sample_rate"]=sample_rate
         global_initial_config.update_config(**USER_INPUT)
-
-        self.pipeline = MyPipeline(
-            # You can also pass custom wav_transforms/spec_transforms if desired
-            spec_transforms=spec_transform,
-            wav_transforms=wav_transform,
-        )
         
-
         self.samples: List[Dict[str, str]] = []
         with open(csv_file, newline='') as f:
             reader = csv.DictReader(f)
@@ -146,6 +140,19 @@ class AudioDatasetFolder(Dataset):
                     sample_entry['track_id'] = row[keys[1]] if len(keys) > 1 else ""
                 self.samples.append(sample_entry)
         
+        path_first_sample = Path(self.samples[0][self.components[0]])
+        fiestwaveform, firstsr = self.audio_io.load(path_first_sample, sample_rate=self.sample_rate, duration=self.duration)
+
+        self.shape_of_first_nontransformed_spec_sample = get_shape_first_sample(fiestwaveform)
+        del path_first_sample, fiestwaveform, firstsr
+        self.pipeline = MyPipeline(
+            # You can also pass custom wav_transforms/spec_transforms if desired
+            spec_transforms=spec_transform,
+            wav_transforms=wav_transform,
+            shape_of_untransformed_size=self.shape_of_first_nontransformed_spec_sample
+        )
+
+
     def __len__(self) -> int:
         return len(self.samples)
 
@@ -158,6 +165,7 @@ class AudioDatasetFolder(Dataset):
         """
         sample_info: Dict[str, str] = self.samples[idx]
         spectrograms: Dict[str, torch.Tensor] = {}
+        
 
         for comp in self.components:
             file_path_str: str = sample_info[comp]
@@ -167,6 +175,7 @@ class AudioDatasetFolder(Dataset):
 
             waveform, sr = self.audio_io.load(file_path, sample_rate=self.sample_rate, duration=self.duration)
             spec = self.pipeline(waveform)
+
 
             
             del waveform  

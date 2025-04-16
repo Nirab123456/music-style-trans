@@ -15,11 +15,10 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 import torchaudio
 import torchaudio.transforms as T
-import torchaudio.functional as tf
 
 # Import transformation functions and Compose object from transformation_utlis.
-from .transformation_utlis import to_stereo, compute_spectrogram
 from configarations import global_initial_config
+from .transformation_pipeline import MyPipeline
 # -----------------------------------------------------------------------------
 # CONFIGURATION (Global Variables to be shared across modules)
 # -----------------------------------------------------------------------------
@@ -79,7 +78,9 @@ class AudioDatasetFolder(Dataset):
         duration: float = 20.0,
         input_name: Optional[str] = None,
         perriferal_name: Optional[List[str]] = None,
-        transform: Optional[Union[Callable[[torch.Tensor], torch.Tensor],
+        wav_transform: Optional[Union[Callable[[torch.Tensor], torch.Tensor],
+                                  List[Callable[[torch.Tensor], torch.Tensor]]]] = None,
+        spec_transform: Optional[Union[Callable[[torch.Tensor], torch.Tensor],
                                   List[Callable[[torch.Tensor], torch.Tensor]]]] = None,
         is_track_id: bool = True,
     ) -> None:
@@ -123,21 +124,12 @@ class AudioDatasetFolder(Dataset):
         USER_INPUT["sample_rate"]=sample_rate
         global_initial_config.update_config(**USER_INPUT)
 
-        # Determine how to handle transformations.
-        # Accept either a single callable (which may be an instance of Compose)
-        # or a list/tuple of callables.
-        if transform is None:
-            self.transforms: List[Callable[[torch.Tensor], torch.Tensor]] = []
-        elif callable(transform):
-            self.transforms = [transform]
-        elif isinstance(transform, (list, tuple)):
-            if all(callable(t) for t in transform):
-                self.transforms = list(transform)
-            else:
-                raise ValueError("All elements in transform must be callable.")
-        else:
-            raise TypeError("transform must be either a callable or a list/tuple of callables.")
-
+        self.pipeline = MyPipeline(
+            # You can also pass custom wav_transforms/spec_transforms if desired
+            spec_transforms=spec_transform,
+            wav_transforms=wav_transform,
+        )
+        
 
         self.samples: List[Dict[str, str]] = []
         with open(csv_file, newline='') as f:
@@ -174,29 +166,9 @@ class AudioDatasetFolder(Dataset):
                 file_path = self.audio_dir / file_path
 
             waveform, sr = self.audio_io.load(file_path, sample_rate=self.sample_rate, duration=self.duration)
-            waveform = to_stereo(waveform)
-            spec = compute_spectrogram(waveform)
+            spec = self.pipeline(waveform)
 
-
-            # Decide whether to apply the transforms.
-            # If either input_name or perriferal_name is provided, then apply transforms only if:
-            #   comp equals input_name OR comp is in perriferal_name.
-            # Otherwise, if none are provided, apply transforms to all components.
-            # Apply transforms selectively
-            apply_transforms = (
-                (self.input_name is not None and comp == self.input_name) or
-                (self.perriferal_name is not None and comp in self.perriferal_name) or
-                (self.input_name is None and self.perriferal_name is None)
-            )
-            if apply_transforms and self.transforms:
-                for transform in self.transforms:
-                    spec = transform(spec)
-            #         waveform = transform(waveform)
-
-            # spec = compute_spectrogram(waveform).abs()
-            # # Optionally delete waveform if not needed further
-            spec = spec.abs()
-
+            
             del waveform  
             spectrograms[comp] = spec
 

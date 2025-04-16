@@ -22,7 +22,6 @@ from .spec_transform import (
 
 class MyPipeline(nn.Module):
     def __init__(self,
-                 use_complex_for_time_stretch: bool = True,
                  wav_transforms: nn.Module = None,
                  spec_transforms: nn.Module = None):
         """
@@ -40,10 +39,8 @@ class MyPipeline(nn.Module):
         # Set default waveform transforms if none provided.
         if wav_transforms is None:
             self.wav_transforms = nn.Sequential(
-                RandomPitchShift_wav(),    # e.g., shift pitch.
                 RandomVolume_wav(),        # adjust amplitude.
                 RandomAbsoluteNoise_wav(), # add noise.
-                RandomSpeed_wav(),         # adjust speed.
                 RandomFade_wav()           # fade in/out.
             )
         else:
@@ -59,7 +56,6 @@ class MyPipeline(nn.Module):
         else:
             self.spec_transforms = spec_transforms
 
-        self.use_complex = use_complex_for_time_stretch
 
 
 
@@ -84,7 +80,7 @@ class MyPipeline(nn.Module):
             waveform = self.wav_transforms(waveform)
         
         # Decide on spectrogram type.
-        if self.use_complex and any(
+        if any(
             isinstance(t, RandomTimeStretch_spec) for t in self.spec_transforms
         ):
             spec = compute_spectrogram(waveform)
@@ -105,12 +101,3 @@ class MyPipeline(nn.Module):
 
         return spec
 
-# Optionally, include a main function to test the pipeline.
-if __name__ == "__main__":
-    dummy_waveform = torch.randn(2, 16000 * 2)  # 2 channels, 2 seconds at 16kHz
-    pipeline = MyPipeline(use_complex_for_time_stretch=True)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    pipeline = pipeline.to(device)
-    dummy_waveform = dummy_waveform.to(device)
-    transformed_spec = pipeline(dummy_waveform)
-    print("Transformed spectrogram shape:", transformed_spec.shape)

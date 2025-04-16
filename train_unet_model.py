@@ -37,11 +37,19 @@ augmentation_pipeline = Compose([
     # RandomTimeStretch_spec(),
 
     #this two working properly together
-    # RandomFrequencyMasking_spec(),
+    RandomFrequencyMasking_spec(),
     RandomTimeMasking_spec(),
 
 ])
-
+arg_p = Compose(
+ [
+    # RandomPitchShift_wav(),
+    RandomVolume_wav(),
+    # RandomSpeed_wav(),
+    RandomAbsoluteNoise_wav(),
+    RandomFade_wav(),
+ ]   
+)
 
 if __name__ == '__main__':
     # Define the component map for the dataset.
@@ -62,6 +70,7 @@ if __name__ == '__main__':
         sample_rate=16000,
         duration=5.0,
         spec_transform=augmentation_pipeline,  # list of transforms
+        wav_transform=arg_p,
         is_track_id=True,
         input_name= "mixture"
     )

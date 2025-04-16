@@ -4,8 +4,9 @@ from typing import Tuple
 import torchaudio.transforms as T
 import configarations
 import configarations.global_initial_config
+import torch.nn as nn 
 
-class RandomFrequencyMasking_spec:
+class RandomFrequencyMasking_spec(nn.Module):
     def __init__(
         self,
         max_freq_mask_param: int = 30,
@@ -20,6 +21,8 @@ class RandomFrequencyMasking_spec:
         """
         self.max_freq_mask_param = max_freq_mask_param
         self.iid_masks = iid_masks
+        super(RandomFrequencyMasking_spec, self).__init__()
+
 
     def __call__(self, spectrogram: torch.Tensor) -> torch.Tensor:
         """
@@ -40,7 +43,7 @@ class RandomFrequencyMasking_spec:
         # Apply it to the spectrogram
         return transform(spectrogram)
 
-class RandomTimeMasking_spec:
+class RandomTimeMasking_spec(nn.Module):
     def __init__(
         self,
         max_time_mask_param: int = 80,
@@ -58,6 +61,8 @@ class RandomTimeMasking_spec:
         self.max_time_mask_param = max_time_mask_param
         self.iid_masks = iid_masks
         self.max_proportion = max_proportion
+        super(RandomTimeMasking_spec, self).__init__()
+
 
     def __call__(self, spectrogram: torch.Tensor) -> torch.Tensor:
         """
@@ -80,7 +85,7 @@ class RandomTimeMasking_spec:
         # Apply it
         return t_spec
 
-class RandomTimeStretch_spec:
+class RandomTimeStretch_spec(nn.Module):
     def __init__(
         self,
         n_freq: int = (2048 // 2) +1 ,  # Mandatory: set this to match your STFT output, e.g., (n_fft // 2) + 1.
@@ -98,6 +103,8 @@ class RandomTimeStretch_spec:
         self.n_freq = n_freq
         self.hop_length = hop_length   # Removed trailing comma so that hop_length is an integer.
         self.rate_range = rate_range
+        super(RandomTimeStretch_spec, self).__init__()
+
         
         # Create the TimeStretch transform from torchaudio.
         # Ensure that n_freq passed here matches the number of frequency bins in your STFT.

@@ -125,7 +125,6 @@ class AudioDatasetFolder(Dataset):
         global_initial_config.update_config(**USER_INPUT)
 
         self.pipeline = MyPipeline(
-            use_complex_for_time_stretch=True,
             # You can also pass custom wav_transforms/spec_transforms if desired
             spec_transforms=spec_transform,
             wav_transforms=wav_transform,

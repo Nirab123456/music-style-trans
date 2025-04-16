@@ -249,6 +249,9 @@ class Compose:
             x = transform(x)
         return x
 
+    def __iter__(self):
+        return iter(self.transforms)
+
 # ------------------------------
 # RandomSubsetCompose Class for Transformations
 # ------------------------------

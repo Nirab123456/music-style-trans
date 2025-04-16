@@ -4,6 +4,8 @@ from typing import Callable, List, Tuple
 import torchaudio
 import configarations.global_initial_config as global_initial_config
 import torchaudio.transforms as T
+import torch.nn as nn
+
 
 # ------------------------------
 # Individual Transformation Classes
@@ -11,7 +13,7 @@ import torchaudio.transforms as T
 
 
 #Highly memory expensive 
-class RandomPitchShift_wav:
+class RandomPitchShift_wav(nn.Module):
     def __init__(
         self,
         sample_rate: int = global_initial_config.SAMPLE_RATE,
@@ -19,6 +21,8 @@ class RandomPitchShift_wav:
         bins_per_octave: int = 12,
         n_fft: int = 512,
     ):
+        super(RandomPitchShift_wav, self).__init__()
+
         self.sample_rate = sample_rate
         self.n_steps = n_steps
         self.bins_per_octave = bins_per_octave
@@ -33,9 +37,11 @@ class RandomPitchShift_wav:
         return wav_shifted
 
 #Highly memory expensive 
-class RandomSpeed_wav:
+class RandomSpeed_wav(nn.Module):
     def __init__(self,speed_range: Tuple[float, float] = (0.8, 1.2)):
         self.speed_range = speed_range
+        super(RandomSpeed_wav, self).__init__()
+
 
     def __call__(self, waveform:torch.Tensor) -> torch.Tensor:
         scale : float = random.uniform(*self.speed_range)
@@ -49,10 +55,11 @@ class RandomSpeed_wav:
 
 
 #optimally optimized     
-class RandomVolume_wav:
+class RandomVolume_wav(nn.Module):
     def __init__(self, volume_range: Tuple[float, float] = (0.8, 1.2)):
         self.volume_range = volume_range
-    
+        super(RandomVolume_wav, self).__init__()
+
     def __call__(self, waveform: torch.Tensor) -> torch.Tensor:
         scale: float = random.uniform(*self.volume_range)
 
@@ -63,7 +70,7 @@ class RandomVolume_wav:
 
     
 #modarately optimized
-class RandomFade_wav:
+class RandomFade_wav(nn.Module):
     def __init__(
         self,
         max_fade_in_len: int = 8000,  # max ~0.5 sec at 16kHz
@@ -73,6 +80,8 @@ class RandomFade_wav:
         self.max_fade_in_len = max_fade_in_len
         self.max_fade_out_len = max_fade_out_len
         self.fade_shapes = fade_shapes
+        super(RandomFade_wav, self).__init__()
+
 
     def __call__(self, waveform: torch.Tensor) -> torch.Tensor:
         total_len = waveform.shape[-1]
@@ -121,7 +130,7 @@ def random_crop_2d(
 
 #Modarate optimized 
 # #updated Random noise for absolute realworld noise simulation 
-class RandomAbsoluteNoise_wav:
+class RandomAbsoluteNoise_wav(nn.Module):
     def __init__(
         self,
         noise_std: float = 0.05,
@@ -130,6 +139,8 @@ class RandomAbsoluteNoise_wav:
         """updated Random noise for absolute realworld noise simulation"""
         self.noise_std = noise_std
         self.noise_tensor = torch.load(noise_tensor_path)
+        super(RandomAbsoluteNoise_wav, self).__init__()
+
 
     def __call__(self, waveform: torch.Tensor) -> torch.Tensor:
         length_of_first_dim : int = waveform.shape[1]

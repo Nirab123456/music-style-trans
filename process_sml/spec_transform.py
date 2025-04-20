@@ -3,6 +3,7 @@ import random
 from typing import Tuple
 import torchaudio.transforms as T
 import torch.nn as nn 
+import configarations.global_initial_config as GI
 
 class RandomFrequencyMasking_spec(nn.Module):
     def __init__(
@@ -86,7 +87,7 @@ class RandomTimeMasking_spec(nn.Module):
 class RandomTimeStretch_spec(nn.Module):
     def __init__(
         self,
-        n_freq: int = (2048 // 2) +1 ,  # Mandatory: set this to match your STFT output, e.g., (n_fft // 2) + 1.
+        n_fft: int = GI.N_FFT,
         hop_length: int = 512,  # Hop length for STFT (as integer).
         rate_range: Tuple[float, float] = (0.1, 0.9)
     ):
@@ -98,7 +99,7 @@ class RandomTimeStretch_spec(nn.Module):
             hop_length (int): Hop length used during STFT.
             rate_range (Tuple[float, float]): Range of time-stretching rates to randomly choose from.
         """
-        self.n_freq = n_freq
+        self.n_freq = (n_fft // 2) +1
         self.hop_length = hop_length   # Removed trailing comma so that hop_length is an integer.
         self.rate_range = rate_range
         super(RandomTimeStretch_spec, self).__init__()
@@ -106,7 +107,7 @@ class RandomTimeStretch_spec(nn.Module):
         
         # Create the TimeStretch transform from torchaudio.
         # Ensure that n_freq passed here matches the number of frequency bins in your STFT.
-        self.transform = T.TimeStretch(n_freq=n_freq, hop_length=hop_length)
+        self.transform = T.TimeStretch(n_freq=self.n_freq, hop_length=hop_length)
 
     def __call__(self, spec: torch.Tensor) -> torch.Tensor:
         """

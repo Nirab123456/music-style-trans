@@ -19,7 +19,7 @@ import torchaudio
 import torchaudio.transforms as T
 
 # Import transformation functions and Compose object from transformation_utils.
-from configarations import global_initial_config
+import configarations.global_initial_config as GI
 from .transformation_pipeline import MyPipeline, get_shape_first_sample
 
 # -----------------------------------------------------------------------------
@@ -78,6 +78,9 @@ class AudioDatasetFolder(Dataset):
         spec_transform: Optional[Union[Callable[[torch.Tensor], torch.Tensor],
                                      List[Callable[[torch.Tensor], torch.Tensor]]]] = None,
         is_track_id: bool = True,
+        n_fft:int = 2048,
+        hop_length:int =512,
+
     ) -> None:
         # Save configuration
         self.sample_rate = sample_rate
@@ -98,8 +101,11 @@ class AudioDatasetFolder(Dataset):
             "audio_dir": audio_dir,
             "components": components,
             "csv_file": csv_file,
+            "n_fft": n_fft,
+            "hop_length" : hop_length
+
         })
-        global_initial_config.update_config(**USER_INPUT)
+        GI.update_config(**USER_INPUT)
 
         # Read CSV and store sample paths
         self.samples: List[Dict[str, str]] = []

@@ -75,8 +75,8 @@ if __name__ == '__main__':
     train_indices, val_indices = indices[:split], indices[split:]
     train_sampler = torch.utils.data.SubsetRandomSampler(train_indices)
     val_sampler = torch.utils.data.SubsetRandomSampler(val_indices)
-    train_loader = DataLoader(dataset_multi, batch_size=8, sampler=train_sampler, num_workers=8)
-    val_loader = DataLoader(dataset_multi, batch_size=8, sampler=val_sampler, num_workers=8)
+    train_loader = DataLoader(dataset_multi, batch_size=32, sampler=train_sampler)
+    val_loader = DataLoader(dataset_multi, batch_size=32, sampler=val_sampler)
     dataloaders: Dict[str, DataLoader] = {"train": train_loader, "val": val_loader}
 
     # -------------------------------

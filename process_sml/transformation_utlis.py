@@ -1,6 +1,8 @@
 import torch
 from typing import Callable, List
 import torchaudio
+import configarations
+import configarations.global_initial_config as GI
 
 # ------------------------------
 # Basic Utility Functions
@@ -13,8 +15,8 @@ def to_stereo(waveform: torch.Tensor) -> torch.Tensor:
 # we can also add additional arguments to compute_spectrogram
 def compute_spectrogram(
     waveform: torch.Tensor,
-    n_fft: int = 2048,
-    hop_length: int = 512,
+    n_fft: int = GI.N_FFT,
+    hop_length: int = GI.HOP_LENGTH,
     power : float = None,
     normalized : bool = False
 ) -> torch.Tensor:

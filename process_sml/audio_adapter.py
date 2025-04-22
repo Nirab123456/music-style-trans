@@ -125,35 +125,25 @@ class AudioDatasetFolder(Dataset):
         self.index_map: List[Tuple[int, int]] = []
         self.audio_io = SimpleAudioIO()
         self.chunk_len = int(self.sample_rate * self.duration)
+        self.first_wavform : torch.Tensor = None
 
-        for i, sample in enumerate(self.samples):
-            path = Path(sample[self.components[0]])
-            if self.audio_dir and not path.is_absolute():
-                path = self.audio_dir / path
-            waveform, _ = self.audio_io.load(path, sample_rate=self.sample_rate)
-            total = waveform.shape[1]
-            n_chunks = math.ceil(total / self.chunk_len)
-            for c in range(n_chunks):
-                self.index_map.append((i, c))
+        # creating index map for audio
+        self.create_index_map()
 
         # Determine spec-shape using first chunk
-        first_sample, first_chunk_idx = self.index_map[0]
-        path = Path(self.samples[first_sample][self.components[0]])
-        if self.audio_dir and not path.is_absolute():
-            path = self.audio_dir / path
-        waveform, _ = self.audio_io.load(path, sample_rate=self.sample_rate)
+        waveform = self.first_wavform
         pad = self.chunk_len * math.ceil(waveform.shape[1] / self.chunk_len) - waveform.shape[1]
         if pad > 0:
             waveform = F.pad(waveform, (0, pad))
         chunks = waveform.unfold(1, self.chunk_len, self.chunk_len).permute(1, 0, 2)
-        first_chunk = chunks[first_chunk_idx]
-        spec_shape = get_shape_first_sample(first_chunk)
+        first_chunk = chunks[0]
+        self.spec_shape = get_shape_first_sample(first_chunk)
 
         # Build pipeline
         self.pipeline = MyPipeline(
             spec_transforms=spec_transform,
             wav_transforms=wav_transform,
-            shape_of_untransformed_size=spec_shape
+            shape_of_untransformed_size=self.spec_shape
         )
 
     def __len__(self) -> int:
@@ -180,3 +170,16 @@ class AudioDatasetFolder(Dataset):
         if self.is_track_id:
             out['track_id'] = sample.get('track_id', '')
         return out
+    
+    def create_index_map(self):
+        for i, sample in enumerate(self.samples):
+            path = Path(sample[self.components[0]])
+            if self.audio_dir and not path.is_absolute():
+                path = self.audio_dir / path
+            waveform, _ = self.audio_io.load(path, sample_rate=self.sample_rate)
+            if i == 0:
+                self.first_wavform = waveform
+            total = waveform.shape[1]
+            n_chunks = math.ceil(total / self.chunk_len)
+            for c in range(n_chunks):
+                self.index_map.append((i, c))

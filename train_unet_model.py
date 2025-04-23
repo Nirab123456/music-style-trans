@@ -12,7 +12,7 @@ from process_sml import (
     AudioDatasetFolder, Compose,ComputeSpectrogram,
     RandomPitchShift_wav,RandomVolume_wav,RandomAbsoluteNoise_wav,RandomSpeed_wav,RandomFade_wav,RandomFrequencyMasking_spec,RandomTimeMasking_spec,RandomTimeStretch_spec)
 # Import the UNet model and the training function from the training module.
-from train_sml import UNet, train_model_source_separation
+from train_sml import UNet, train_model_source_separation,LiteResUNet
 import torch.nn as nn
 
 # augmentation_pipeline = Compose([
@@ -83,14 +83,17 @@ if __name__ == '__main__':
     # Model Integration
     # -------------------------------
 
-    model = UNet(in_channels=2)
+    # model = UNet(in_channels=2)
 
-    # Define the label names (target keys) for source separation.
+    # # Define the label names (target keys) for source separation.
     label_names = ["drums", "bass", "other_accompaniment", "vocals"]
 
-    # Prepare the final convolution layers for each target output.
-    for key in label_names:
-        model.final_convs[key] = nn.Conv2d(16, 2, kernel_size=1)
+    # # Prepare the final convolution layers for each target output.
+    # for key in label_names:
+    #     model.final_convs[key] = nn.Conv2d(16, 2, kernel_size=1)
+
+    model = LiteResUNet(backbone="resnet18",source_names=label_names,pretrained=True,)
+
 
     # IMPORTANT: Move the entire model to the device after adding the final conv layers.
     model = model.to(device)

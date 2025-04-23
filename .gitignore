@@ -9,3 +9,12 @@ musdb18-separation/bin/ffplay.exe
 musdb18-separation/bin/ffprobe.exe
 output_stems
 process_musdb18/__pycache__
+*copy.*
+logs
+checkpoints
+sample_audio
+/pre_saved_tensors
+all_sample_noise
+__pycache__
+*.ipynb
+

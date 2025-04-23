@@ -1,0 +1,24 @@
+01-Extensive transformation of inputs cause nan Loss - have to find better data argumentationpipeline.
+Update-01- Even applying 3 transformation dosent cause any issue.
+pre-sollution-01 - Applying any random 3 transformation at a time.
+code-improvement(optional)-01 - Torchvisionstyle transformation for ease of use.
+RandomNoise- transformation might be the underlying issue of nan loss -01
+
+02-  output of the Unet verient for musdb18 dataset is sterio duel chenal   
+for key in label_names:
+        model.final_convs[key] = nn.Conv2d(16, 2, kernel_size=1)
+
+03- I can save a series of noise ternsformation tensor at the start of the training loop to reduce redundent conversion 
+        from *.wav to tensor : can reduce the computation of transformation dramatically
+
+04 - random noise should have the shape of the input tensor insted to avoid clash between other transformation.
+
+05 - pre and post tansor transformation randomvollume , randompitchshift, randomtimecrop, randomtimestrech should be applied on waveform insted of spectogram tensor.
+random noise and random distorsion and other can be added to transform spectogram.
+
+        UPDATE 05- All the functions are being shifted for wav form except some explecit finction.
+        process_sml\wav_transform_utils.py : RandomPitchShift_wav (highly Ram expensive can be optimized reeverting to previous)
+05 - issue update : saparated wav based and spectogram based transformation  and building a pipeline to transform the waveform
+        -CLASSES WITH MEMORY ISSUE IN wav_transform_utils : RandomPitchShift_wav,RandomSpeed_wav
+05-issue update : RandomTimeStretch_spec is making the spectogram stack to be different shape applying adjust_spec_shape() from transformation_pipeline 
+        resolve the issue but is it appopriate ?

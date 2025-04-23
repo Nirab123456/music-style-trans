@@ -22,3 +22,8 @@ random noise and random distorsion and other can be added to transform spectogra
         -CLASSES WITH MEMORY ISSUE IN wav_transform_utils : RandomPitchShift_wav,RandomSpeed_wav
 05-issue update : RandomTimeStretch_spec is making the spectogram stack to be different shape applying adjust_spec_shape() from transformation_pipeline 
         resolve the issue but is it appopriate ?
+
+06 - NEW ISSUE - Before updating to cython branch : Using grrifling to recover the sound is quite lossy and can produce significent impect.
+06 - Issue Update - Updating or creating lightweight model and pathway to train on complex tensor 
+
+        Resolve in issue 06 is necessery for progress in cython branch 

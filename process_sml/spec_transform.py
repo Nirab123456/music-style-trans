@@ -128,7 +128,7 @@ class RandomTimeStretch_spec(nn.Module):
         rate = random.uniform(*self.rate_range)
         # Compute the transformed spectrogram.
         trans_spec = self.transform(spec, rate)
-        trans_spec = trans_spec.abs()
+        # trans_spec = trans_spec.abs()
 
 
         # Apply time stretching using the transform.

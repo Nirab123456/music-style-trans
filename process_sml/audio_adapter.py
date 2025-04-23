@@ -80,6 +80,7 @@ class AudioDatasetFolder(Dataset):
         is_track_id: bool = True,
         n_fft:int = 2048,
         hop_length:int =512,
+        will_complex:bool = True,
 
     ) -> None:
         # Save configuration
@@ -143,7 +144,9 @@ class AudioDatasetFolder(Dataset):
         self.pipeline = MyPipeline(
             spec_transforms=spec_transform,
             wav_transforms=wav_transform,
-            shape_of_untransformed_size=self.spec_shape
+            shape_of_untransformed_size=self.spec_shape,
+            input_name = input_name,
+            perriferal_name = perriferal_name,
         )
 
     def __len__(self) -> int:
@@ -165,7 +168,7 @@ class AudioDatasetFolder(Dataset):
                 waveform = F.pad(waveform, (0, pad))
             chunks = waveform.unfold(1, self.chunk_len, self.chunk_len).permute(1, 0, 2)
             chunk_wave = chunks[chunk_idx]
-            out[comp] = self.pipeline(chunk_wave)
+            out[comp] = self.pipeline(chunk_wave,component=comp)
 
         if self.is_track_id:
             out['track_id'] = sample.get('track_id', '')

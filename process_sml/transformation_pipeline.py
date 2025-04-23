@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torchaudio
 import torchaudio.transforms as T
-import typing
+import typing 
 import torch.nn.functional as F
 
 
@@ -62,6 +62,8 @@ class MyPipeline(nn.Module):
                  wav_transforms: nn.Module = None,
                  spec_transforms: nn.Module = None,
                  shape_of_untransformed_size:torch.Size = None,
+                 input_name : typing.Optional[str] = None,
+                 perriferal_name: typing.Optional[typing.List[str]] = None,
                  ):
         """
         A unified pipeline that applies both waveform- and spectrogram-level transforms.
@@ -75,6 +77,8 @@ class MyPipeline(nn.Module):
         """
         super(MyPipeline, self).__init__()
         self.shape_of_first_nontransformed_spec_sample = shape_of_untransformed_size
+        self.input_name =input_name
+        self.perriferal_name = perriferal_name
 
         # Set default waveform transforms if none provided.
         if wav_transforms is None:
@@ -91,7 +95,7 @@ class MyPipeline(nn.Module):
             self.spec_transforms = nn.ModuleList([
                 RandomFrequencyMasking_spec(max_freq_mask_param=30, iid_masks=False),
                 RandomTimeMasking_spec(max_time_mask_param=80, iid_masks=False, max_proportion=1.0),
-                RandomTimeStretch_spec(n_freq=201, hop_length=256, rate_range=(0.8, 1.25))
+                RandomTimeStretch_spec(n_fft=2048, hop_length=256, rate_range=(0.8, 1.25))
             ])
         else:
             self.spec_transforms = spec_transforms
@@ -99,7 +103,7 @@ class MyPipeline(nn.Module):
 
 
 
-    def forward(self, waveform: torch.Tensor) -> torch.Tensor:
+    def forward(self, waveform: torch.Tensor, component: str ) -> torch.Tensor:
         """
         Applies the following steps:
           1. Waveform transforms (e.g., pitch shift, volume, noise).
@@ -112,34 +116,35 @@ class MyPipeline(nn.Module):
         Returns:
             torch.Tensor: The final transformed spectrogram.
         """
-        # Ensure stereo format.
         waveform = to_stereo(waveform)
-        
-        # Apply waveform-level augmentations.
-        if self.wav_transforms is not None:
-            waveform = self.wav_transforms(waveform)
-        
-        # Decide on spectrogram type.
-        if any(
-            isinstance(t, RandomTimeStretch_spec) for t in self.spec_transforms
-        ):
-            spec = compute_spectrogram(waveform)
 
+        if component == self.input_name or (self.perriferal_name != None and component in self.perriferal_name):
+            
+            if self.wav_transforms:
+                waveform = self.wav_transforms(waveform)
+
+            # 1) complex-only branch
+            if any(isinstance(t, RandomTimeStretch_spec) for t in self.spec_transforms):
+                complex_spec = compute_spectrogram(waveform)   # complex64
+                # apply only the time-stretch transforms
+                for t in self.spec_transforms:
+                    if isinstance(t, RandomTimeStretch_spec):
+                        complex_spec = t(complex_spec)
+                spec = complex_spec.abs()                      # now real
+            else:
+                # no complex transforms => just get a real spectrogram
+                spec = compute_spectrogram(waveform)
+                spec = spec.abs()
+
+            # 2) now apply all your real-only masks
+            for t in self.spec_transforms:
+                if not isinstance(t, RandomTimeStretch_spec):
+                    spec = t(spec)
         else:
             spec = compute_spectrogram(waveform)
             spec = spec.abs()
 
-        # Free waveform memory.
-        del waveform
 
-        # Apply spectrogram-level transforms.
-        for transform in self.spec_transforms:
-            if isinstance(transform, RandomTimeStretch_spec) and not torch.is_complex(spec):
-                raise ValueError("RandomTimeStretch_spec requires a complex spectrogram. "
-                                 "Set use_complex_for_time_stretch=True and provide proper STFT parameters.")
-            spec = transform(spec)
-        spec =adjust_spec_shape(spec,self.shape_of_first_nontransformed_spec_sample[-2:])
-
-
+        spec = adjust_spec_shape(spec, self.shape_of_first_nontransformed_spec_sample[-2:])
         return spec
 

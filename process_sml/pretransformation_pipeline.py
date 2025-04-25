@@ -22,32 +22,6 @@ from .spec_transform import (
     RandomTimeStretch_spec
 )
 
-
-def adjust_phase_shape(phase: torch.Tensor, target_shape: typing.Tuple[int, int]) -> torch.Tensor:
-    """
-    Adjust the last two dimensions of a phase tensor to match target_shape.
-    
-    Args:
-        phase (torch.Tensor): Phase tensor of shape [channels, n_freq, time].
-        target_shape (Tuple[int, int]): Desired (n_freq, time) shape.
-    
-    Returns:
-        torch.Tensor: Phase tensor resized to [channels, *target_shape].
-    """
-    current_shape = phase.shape[-2:]
-    if current_shape == target_shape:
-        return phase
-
-    # Unsqueeze a batch dim so interpolate works on 4D ([1, C, F, T])
-    phase_adjusted = F.interpolate(
-        phase.unsqueeze(0),
-        size=target_shape,
-        mode='bilinear',
-        align_corners=False
-    )
-    return phase_adjusted.squeeze(0)
-
-
 def adjust_spec_shape(spec: torch.Tensor, target_shape: typing.Tuple[int, int]) -> torch.Tensor:
     """
     Adjust the last two dimensions of a spectrogram tensor.
@@ -143,7 +117,6 @@ class MyPipeline(nn.Module):
             torch.Tensor: The final transformed spectrogram.
         """
         waveform = to_stereo(waveform)
-        phase = None
 
         if component == self.input_name or (self.perriferal_name != None and component in self.perriferal_name):
             
@@ -157,13 +130,10 @@ class MyPipeline(nn.Module):
                 for t in self.spec_transforms:
                     if isinstance(t, RandomTimeStretch_spec):
                         complex_spec = t(complex_spec)
-                phase = complex_spec.angle()
                 spec = complex_spec.abs()                      # now real
-
             else:
                 # no complex transforms => just get a real spectrogram
                 spec = compute_spectrogram(waveform)
-                phase = spec.angle()
                 spec = spec.abs()
 
             # 2) now apply all your real-only masks
@@ -172,11 +142,21 @@ class MyPipeline(nn.Module):
                     spec = t(spec)
         else:
             spec = compute_spectrogram(waveform)
-            phase = spec.angle()
-            spec = spec.abs()
+            print(f"Full spectogram shape of phase {spec.shape}")
+            print(f"first index of the full spectogram {spec[0][0][0]}")
 
-            
+            phase = spec.angle()           # phase
+            print(f"shape of phase {phase.shape}")
+            # print(f"phase tensor is \n{phase}")
+            print(f"first index of the phase tensor {phase[0][0][0]}")
+
+            spec = spec.abs()
+            print(f"Shape of megnatitude is {spec.shape}")
+            # print(f"megnatitude tensor is \n{spec}")
+            print(f"first index of the only megnititude tensor {spec[0][0][0]}")
+            print("...............done................")
+
+
         spec = adjust_spec_shape(spec, self.shape_of_first_nontransformed_spec_sample[-2:])
-        phase = adjust_phase_shape(phase, self.shape_of_first_nontransformed_spec_sample[-2:])
-        combined = torch.cat((spec, phase), dim=0)  # (4, H, W)
-        return combined
+        return spec
+

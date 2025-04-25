@@ -103,8 +103,7 @@ class AudioDatasetFolder(Dataset):
             "components": components,
             "csv_file": csv_file,
             "n_fft": n_fft,
-            "hop_length" : hop_length
-
+            "hop_length": hop_length
         })
         GI.update_config(**USER_INPUT)
 
@@ -145,8 +144,8 @@ class AudioDatasetFolder(Dataset):
             spec_transforms=spec_transform,
             wav_transforms=wav_transform,
             shape_of_untransformed_size=self.spec_shape,
-            input_name = input_name,
-            perriferal_name = perriferal_name,
+            input_name=input_name,
+            perriferal_name=perriferal_name,
         )
 
     def __len__(self) -> int:

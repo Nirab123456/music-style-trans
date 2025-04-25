@@ -9,7 +9,7 @@ from torch.optim import lr_scheduler
 
 # Import our custom dataset and augmentation pipeline.
 from process_sml import (
-    AudioDatasetFolder, Compose,ComputeSpectrogram,
+    AudioDatasetFolder, Compose,
     RandomPitchShift_wav,RandomVolume_wav,RandomAbsoluteNoise_wav,RandomSpeed_wav,RandomFade_wav,RandomFrequencyMasking_spec,RandomTimeMasking_spec,RandomTimeStretch_spec)
 # Import the UNet model and the training function from the training module.
 from train_sml import UNet, train_model_source_separation,LiteResUNet
@@ -86,7 +86,7 @@ dataloaders: Dict[str, DataLoader] = {"train": train_loader, "val": val_loader}
 # for key in label_names:
 #     model.final_convs[key] = nn.Conv2d(16, 2, kernel_size=1)
 
-model = LiteResUNet(backbone="resnet18",source_names=label_names,pretrained=True,)
+model = LiteResUNet(backbone="resnet18",source_names=label_names,pretrained=True,in_channels=4)
 
 
 # IMPORTANT: Move the entire model to the device after adding the final conv layers.

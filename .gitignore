@@ -17,4 +17,6 @@ sample_audio
 all_sample_noise
 __pycache__
 /reconstruction-test
+/reconstruction_wev
+/test
 

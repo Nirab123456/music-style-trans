@@ -35,44 +35,10 @@ def compute_spectrogram(
 
     return spec  # .abs() or .abs()**2 for power
 
-class ComputeSpectrogram:
-    def __init__(self, n_fft: int = 2048, hop_length: int = 512, power: float = None, normalized: bool = False):
-        """
-        Compute the magnitude spectrogram using torchaudio.functional.spectrogram.
-        
-        Args:
-            n_fft (int): The FFT window size.
-            hop_length (int): The hop length for the window.
-            power (float, optional): If None, returns a complex tensor and we take the magnitude.
-                                      Otherwise, returns the power spectrogram.
-            normalized (bool): If True, the spectrogram is normalized.
-        """
-        self.n_fft = n_fft
-        self.hop_length = hop_length
-        self.power = power
-        self.normalized = normalized
-
-    def __call__(self, waveform: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            waveform (Tensor): Audio tensor. Expected shapes are (time), (channel, time) or (batch, channel, time).
-        
-        Returns:
-            Tensor: The computed magnitude spectrogram with shape (channel, freq, time) (or with batch dimension if provided).
-        """
-
-        spec = compute_spectrogram(waveform,self.n_fft,self.hop_length,self.power,self.normalized)
-        
-
-        if self.power is None:
-            return spec.abs()
-        else:
-            return spec
-
 def compute_waveform(
     mag_spec: torch.Tensor,
-    n_fft: int = 2048,
-    hop_length: int = 512,
+    n_fft: int = GI.N_FFT,
+    hop_length: int = GI.HOP_LENGTH,
     num_iters: int = 64
 ) -> torch.Tensor:
     """Reconstruct waveform from magnitude spectrogram using Griffin-Lim."""
@@ -94,70 +60,47 @@ def compute_waveform(
     )
     return waveform
 
-def reconstruct_waveform_from_complex_spec(
+import torch
+
+def reconstruct_waveform(
     complex_spec: torch.Tensor,
-    n_fft: int = 2048,
-    hop_length: Optional[int] = None,
-    win_length: Optional[int] = None,
-    window_fn: Optional[callable] = None,
-    normalized: bool = False,
+    n_fft: int = GI.N_FFT,
+    hop_length: int = GI.HOP_LENGTH,
+    win_length: int = None,
+    window_fn: callable = None,
     center: bool = True,
-    pad_mode: str = 'reflect',
+    pad_mode: str = "reflect",
+    normalized: bool = False,
     onesided: bool = True,
-    length: Optional[int] = None
+    length: int = None
 ) -> torch.Tensor:
     """
-    Reconstruct a time-domain waveform from a complex STFT tensor
-    using torchaudio.transforms.InverseSpectrogram.
-
-    Args:
-        complex_spec (Tensor): Complex-valued STFT of shape (..., freq, time).
-        n_fft (int): FFT size used for the original STFT.
-        hop_length (int, optional): hop length used for STFT (defaults to win_length//2).
-        win_length (int, optional): window length (defaults to n_fft).
-        window_fn (callable, optional): window function, defaults to torch.hann_window.
-        normalized (bool): whether the original STFT was normalized.
-        center (bool): whether the STFT frames were centered.
-        pad_mode (str): padding mode used when centering.
-        onesided (bool): whether the original STFT was one-sided.
-        length (int, optional): expected length of the output waveform.
-
-    Returns:
-        Tensor: real-valued waveform of shape (..., time).
+    Perfectly invert a complex spectrogram, as long as all parameters
+    match your forward STFT exactly.
     """
-    if not torch.is_complex(complex_spec):
-        raise ValueError("`complex_spec` must be a complex tensor (dtype=torch.cfloat/complex64 or complex128).")
-
-    # Default hop_length and win_length
     if win_length is None:
         win_length = n_fft
-    if hop_length is None:
-        hop_length = win_length // 2
-
-    # Default window function
     if window_fn is None:
-        window_fn = torch.hann_window
+        # must match your forward window
+        window = torch.hann_window(win_length, device=complex_spec.device)
+    else:
+        window = window_fn(win_length, device=complex_spec.device)
 
-    # Instantiate the inverse transform
-    inv_spec = torchaudio.transforms.InverseSpectrogram(
+    # torch.istft accepts both batched and channel‐first inputs:
+    #   if your spec is [C, F, T], you’ll get [C, time] out
+    waveform = torch.istft(
+        complex_spec,
         n_fft=n_fft,
-        win_length=win_length,
         hop_length=hop_length,
-        pad=0,
-        window_fn=window_fn,
-        normalized=normalized,
-        wkwargs=None,
+        win_length=win_length,
+        window=window,
         center=center,
-        pad_mode=pad_mode,
+        normalized=normalized,
         onesided=onesided,
+        length=length
     )
-
-    # Apply it
-    # –– spec should have shape (..., freq, time)
-    # –– output will be (..., time)
-    waveform = inv_spec(complex_spec, length)
-
     return waveform
+
 # ------------------------------
 # Compose Class for Transformations
 # ------------------------------

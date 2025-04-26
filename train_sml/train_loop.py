@@ -22,6 +22,7 @@ import torch.optim as optim
 from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+from process_sml import batch_reconstruct_waveform
 
 
 # -----------------------------------------------------------------------------
@@ -95,8 +96,8 @@ def train_model_source_separation(
                 y_true_dict = {}
                 for key in label_names:
                     y = batch[key]
-                    if y.dim() == 3:
-                        y = y.unsqueeze(1)
+                    if y.dim() == 2:
+                        y = y.unsqueeze(0)
                     y_true_dict[key] = y.to(device)
 
                 optimizer.zero_grad()
@@ -106,7 +107,13 @@ def train_model_source_separation(
                     # Compute loss as the sum of per-source losses.
                     loss = 0.0
                     for key in label_names:
-                        loss += criterion(outputs[key], y_true_dict[key])
+                        output = outputs[key]
+                        spec_multi_recovered, phase_multi_recovered = torch.split(output, 2, dim=1)
+                        complex_y = torch.polar(spec_multi_recovered, phase_multi_recovered)
+                        reconstruction = batch_reconstruct_waveform(complex_y)
+                        
+
+                        loss += criterion(reconstruction, y_true_dict[key])
 
                     if phase == "train":
                         loss.backward()
@@ -201,7 +208,13 @@ def test_model_source_separation(
             outputs: Dict[str, torch.Tensor] = model(inputs)
             loss = 0.0
             for key in label_names:
-                loss += criterion(outputs[key], y_true[key])
+
+                output = outputs[key]
+                spec_multi_recovered, phase_multi_recovered = torch.split(output, 2, dim=0)
+                complex_y = torch.polar(spec_multi_recovered, phase_multi_recovered)
+                reconstruction = batch_reconstruct_waveform(complex_y)
+
+                loss += criterion(reconstruction, y_true[key])
             batch_size = inputs.size(0)
             running_loss += loss.item() * batch_size
             num_samples += batch_size

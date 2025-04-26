@@ -90,6 +90,7 @@ class MyPipeline(nn.Module):
                  shape_of_untransformed_size:torch.Size = None,
                  input_name : typing.Optional[str] = None,
                  perriferal_name: typing.Optional[typing.List[str]] = None,
+                 shape_of_first_wav_tensor : torch.Size = None,
                  ):
         """
         A unified pipeline that applies both waveform- and spectrogram-level transforms.
@@ -170,13 +171,10 @@ class MyPipeline(nn.Module):
             for t in self.spec_transforms:
                 if not isinstance(t, RandomTimeStretch_spec):
                     spec = t(spec)
-        else:
-            spec = compute_spectrogram(waveform)
-            phase = spec.angle()
-            spec = spec.abs()
-
             
-        spec = adjust_spec_shape(spec, self.shape_of_first_nontransformed_spec_sample[-2:])
-        phase = adjust_phase_shape(phase, self.shape_of_first_nontransformed_spec_sample[-2:])
-        combined = torch.cat((spec, phase), dim=0)  # (4, H, W)
-        return combined
+            spec = adjust_spec_shape(spec, self.shape_of_first_nontransformed_spec_sample[-2:])
+            phase = adjust_phase_shape(phase, self.shape_of_first_nontransformed_spec_sample[-2:])
+            combined = torch.cat((spec, phase), dim=0)  # (4, H, W)
+            return combined
+        else:
+            return waveform

@@ -80,7 +80,6 @@ class AudioDatasetFolder(Dataset):
         is_track_id: bool = True,
         n_fft:int = 2048,
         hop_length:int =512,
-        will_complex:bool = True,
 
     ) -> None:
         # Save configuration

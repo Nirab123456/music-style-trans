@@ -60,7 +60,63 @@ def compute_waveform(
     )
     return waveform
 
-import torch
+def batch_reconstruct_waveform(
+    complex_spec: torch.Tensor,
+    n_fft: int = GI.N_FFT,
+    hop_length: int = GI.HOP_LENGTH,
+    win_length: int = None,
+    window_fn: callable = None,
+    center: bool = True,
+    pad_mode: str = "reflect",
+    normalized: bool = False,
+    onesided: bool = True,
+    length: int = 80000,
+) -> torch.Tensor:
+    """
+    Reconstruct a batch of waveforms from complex spectrograms on GPU.
+
+    Args:
+        complex_spec (B×C×F×T, complex): input STFTs.
+        n_fft (int): FFT size.
+        hop_length (int): hop size.
+        win_length (int, optional): window length (defaults to n_fft).
+        window_fn (callable, optional): fn(win_length)->window Tensor.
+        center, pad_mode, normalized, onesided: passed to torch.istft.
+        length (int, optional): output length in samples.
+
+    Returns:
+        waveforms (B×C×L, float): reconstructed time-domain signals.
+    """
+    B, C, F, T = complex_spec.shape
+    # flatten batch & channel dims so istft sees a 3D input (N, F, T)
+    spec_flat = complex_spec.reshape(B * C, F, T)
+
+    # set defaults
+    if win_length is None:
+        win_length = n_fft
+    if window_fn is None:
+        window = torch.hann_window(win_length, device=complex_spec.device)
+    else:
+        # assume window_fn takes (win_length,) and returns a Tensor
+        window = window_fn(win_length, device=complex_spec.device)
+
+    # run a single istft over the flattened batch
+    wave_flat = torch.istft(
+        spec_flat,
+        n_fft=n_fft,
+        hop_length=hop_length,
+        win_length=win_length,
+        window=window,
+        center=center,
+        normalized=normalized,
+        onesided=onesided,
+        length=length,
+    )  # shape: (B*C, L)
+
+    # reshape back to (B, C, L)
+    L = wave_flat.size(-1)
+    waveforms = wave_flat.view(B, C, L)
+    return waveforms
 
 def reconstruct_waveform(
     complex_spec: torch.Tensor,

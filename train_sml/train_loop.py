@@ -88,8 +88,8 @@ def train_model_source_separation(
             for batch_idx, batch in enumerate(data_loader):
                 # Get the input tensor using the provided input_name key and ensure a channel dimension.
                 inputs = batch[input_name]
-                if inputs.dim() == 3:
-                    inputs = inputs.unsqueeze(1)
+                if inputs.dim() == 2:
+                    inputs = inputs.unsqueeze(0)
                 inputs = inputs.to(device)
 
                 # Get ground truth spectrograms for each source using label_names.
@@ -192,16 +192,16 @@ def test_model_source_separation(
         for batch in dataloader:
             # Get the input tensor using the provided input_name key and ensure it has a channel dimension.
             inputs = batch[input_name]
-            if inputs.dim() == 3:
-                inputs = inputs.unsqueeze(1)
+            if inputs.dim() == 2:
+                inputs = inputs.unsqueeze(0)
             inputs = inputs.to(device)
             
             # Get ground truth spectrograms for each source from label_names.
             y_true = {}
             for key in label_names:
                 y = batch[key]
-                if y.dim() == 3:
-                    y = y.unsqueeze(1)
+                if y.dim() == 2:
+                    y = y.unsqueeze(0)
                 y_true[key] = y.to(device)
 
             # Run the model forward pass.

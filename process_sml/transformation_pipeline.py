@@ -127,7 +127,9 @@ class MyPipeline(nn.Module):
         else:
             self.spec_transforms = spec_transforms
 
-
+        self._complex_transforms = [t for t in self.spec_transforms if isinstance(t, RandomTimeStretch_spec)] 
+        self._real_transforms    = [t for t in self.spec_transforms if not isinstance(t, RandomTimeStretch_spec)] 
+        self._use_complex = len(self._complex_transforms) > 0 
 
 
     def forward(self, waveform: torch.Tensor, component: str ) -> torch.Tensor:
@@ -151,27 +153,19 @@ class MyPipeline(nn.Module):
             if self.wav_transforms:
                 waveform = self.wav_transforms(waveform)
 
-            # 1) complex-only branch
-            if any(isinstance(t, RandomTimeStretch_spec) for t in self.spec_transforms):
-                complex_spec = compute_spectrogram(waveform)   # complex64
-                # apply only the time-stretch transforms
-                for t in self.spec_transforms:
-                    if isinstance(t, RandomTimeStretch_spec):
-                        complex_spec = t(complex_spec)
-                phase = complex_spec.angle()
-                spec = complex_spec.abs()                      # now real
-
-            else:
-                # no complex transforms => just get a real spectrogram
-                spec = compute_spectrogram(waveform)
+            if self._use_complex: 
+                complex_spec = compute_spectrogram(waveform) 
+            for t in self._complex_transforms:         
+                complex_spec = t(complex_spec) 
+                phase = complex_spec.angle() 
+                spec  = complex_spec.abs() 
+            else: 
+                spec  = compute_spectrogram(waveform).abs() 
                 phase = spec.angle()
                 spec = spec.abs()
-
-            # 2) now apply all your real-only masks
-            for t in self.spec_transforms:
-                if not isinstance(t, RandomTimeStretch_spec):
-                    spec = t(spec)
             
+            for t in self._real_transforms: 
+                spec = t(spec)             
             spec = adjust_spec_shape(spec, self.shape_of_first_nontransformed_spec_sample[-2:])
             phase = adjust_phase_shape(phase, self.shape_of_first_nontransformed_spec_sample[-2:])
             combined = torch.cat((spec, phase), dim=0)  # (4, H, W)

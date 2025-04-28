@@ -10,6 +10,9 @@ COMPONENTS = []
 CSV_FILE = None
 N_FFT = 2048
 HOP_LENGTH = 512
+CACHE_DIR_PATH = None
+DB_FILENAME = None
+DB_FILE_PATH = None 
 
 def update_config(
     sample_rate=None,
@@ -23,9 +26,13 @@ def update_config(
     csv_file=None,
     n_fft =None,
     hop_length = None,
+    cache_dir_path = None,
+    db_filename = None,
+    db_file_path = None,
 ):
     global SAMPLE_RATE, DURATION, INPUT_NAME, PERRIFERAL_NAME, IS_TRACK_ID
-    global TRANSFORMS, AUDIO_DIR, COMPONENTS, CSV_FILE,N_FFT,HOPE_LENGTH
+    global TRANSFORMS, AUDIO_DIR, COMPONENTS, CSV_FILE,N_FFT,HOP_LENGTH
+    global CACHE_DIR_PATH,DB_FILENAME,DB_FILE_PATH
 
     if sample_rate is not None:
         SAMPLE_RATE = sample_rate
@@ -49,6 +56,13 @@ def update_config(
         N_FFT = n_fft
     if hop_length is not None:
         HOP_LENGTH = hop_length
+    if cache_dir_path != None:
+        CACHE_DIR_PATH = cache_dir_path
+    if db_filename != None:
+        DB_FILENAME = db_filename
+    if CACHE_DIR_PATH and DB_FILENAME != None:
+        DB_FILE_PATH = CACHE_DIR_PATH/DB_FILENAME
+
 
 
 

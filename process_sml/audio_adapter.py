@@ -1,14 +1,7 @@
-#!/usr/bin/env python
-# coding: utf8
-"""
-This module implements an audio data preprocessing pipeline using PyTorch.
-Data preprocessing includes audio loading, spectrogram computation, and flattening full audio
-into fixed-duration chunks. Each chunk becomes its own sample, ensuring consistent tensor shapes
-for batching in the DataLoader.
-"""
-
+import os
 import csv
 import math
+import sqlite3
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
@@ -18,12 +11,11 @@ from torch.utils.data import Dataset
 import torchaudio
 import torchaudio.transforms as T
 
-# Import transformation functions and Compose object from transformation_utils.
-import configarations.global_initial_config as GI
 from .transformation_pipeline import MyPipeline, get_shape_first_sample
+import configarations.global_initial_config as GI
 
 # -----------------------------------------------------------------------------
-# CONFIGURATION (Global Variables to be shared across modules)
+# CONFIGURATION (Global Variables)
 # -----------------------------------------------------------------------------
 USER_INPUT = {
     "sample_rate": 44000,
@@ -36,34 +28,34 @@ USER_INPUT = {
     "csv_file": "dataset_index.csv"
 }
 
-# -----------------------------------------------------------------------------
-# Simple Audio Loader
-# -----------------------------------------------------------------------------
+#has to be linxed with global initial configaration
+CACHE_DIR = Path(".cache_chunks")
+DB_FILENAME = CACHE_DIR / "index.db"
+
+#-----------------------------------------------------
 class SimpleAudioIO:
-    def load(
-        self,
-        path: Union[str, Path],
-        sample_rate: Optional[int] = None,
-    ) -> Tuple[torch.Tensor, int]:
-        """
-        Loads an entire audio file from the given path, normalizes it,
-        and resamples it if required.
-        Returns the full waveform without cropping.
-        """
+    def __init__(self):
+        self._resamplers: Dict[Tuple[int,int], T.Resample] = {}
+
+    def load(self, path: Union[str, Path], sample_rate: Optional[int] = None) -> Tuple[torch.Tensor, int]:
         waveform, sr = torchaudio.load(str(path), normalize=True)
         if sample_rate is not None and sr != sample_rate:
-            waveform = T.Resample(orig_freq=sr, new_freq=sample_rate)(waveform)
+            key = (sr, sample_rate)
+            if key not in self._resamplers:
+                self._resamplers[key] = T.Resample(orig_freq=sr, new_freq=sample_rate)
+            waveform = self._resamplers[key](waveform)
             sr = sample_rate
         return waveform, sr
 
     def save(self, path: Union[str, Path], waveform: torch.Tensor, sample_rate: int) -> None:
-        """Saves the given waveform to the specified path."""
         torchaudio.save(str(path), waveform, sample_rate)
 
-# -----------------------------------------------------------------------------
-# AudioDatasetFolder flattened to chunks
-# -----------------------------------------------------------------------------
 class AudioDatasetFolder(Dataset):
+    """
+    Caches each track+component as a single .pt containing all fixed-duration chunks.
+    Uses an SQLite database to map (track_idx, component) -> cache file, and a simple
+    in-memory index_map of (track_idx, chunk_idx) for batch sampling across all components.
+    """
     def __init__(
         self,
         csv_file: str,
@@ -78,11 +70,12 @@ class AudioDatasetFolder(Dataset):
         spec_transform: Optional[Union[Callable[[torch.Tensor], torch.Tensor],
                                      List[Callable[[torch.Tensor], torch.Tensor]]]] = None,
         is_track_id: bool = True,
-        n_fft:int = 2048,
-        hop_length:int =512,
-
+        n_fft: int = 2048,
+        hop_length: int = 512,
+        cache_dir : str = None,
+        cache_db_name : str = None,
     ) -> None:
-        # Save configuration
+        # Basic config
         self.sample_rate = sample_rate
         self.duration = duration
         self.is_track_id = is_track_id
@@ -90,6 +83,8 @@ class AudioDatasetFolder(Dataset):
         self.perriferal_name = perriferal_name
         self.audio_dir = Path(audio_dir) if audio_dir else None
         self.components = components or []
+        self.chunk_len = int(self.sample_rate * self.duration)
+        self.audio_io = SimpleAudioIO()
 
         # Update global config
         USER_INPUT.update({
@@ -106,39 +101,51 @@ class AudioDatasetFolder(Dataset):
         })
         GI.update_config(**USER_INPUT)
 
-        # Read CSV and store sample paths
-        self.samples: List[Dict[str, str]] = []
+        # 1) Read CSV index into self.samples
+        self.samples: List[Dict[str, Union[Path,str]]] = []
         with open(csv_file, newline='') as f:
             reader = csv.DictReader(f)
             for row in reader:
-                entry = {comp: row[comp] for comp in self.components if row.get(comp)}
-                if len(entry) != len(self.components):
-                    missing = set(self.components) - set(entry.keys())
-                    raise ValueError(f"Missing components in CSV: {missing}")
+                entry: Dict[str, Union[Path,str]] = {}
+                for comp in self.components:
+                    if comp not in row or not row[comp]:
+                        raise ValueError(f"Missing component '{comp}' in CSV row {row}")
+                    p = Path(row[comp])
+                    if self.audio_dir and not p.is_absolute():
+                        p = self.audio_dir / p
+                    entry[comp] = p
                 if self.is_track_id:
                     keys = list(row.keys())
                     entry['track_id'] = row[keys[1]] if len(keys) > 1 else ''
                 self.samples.append(entry)
 
-        # Build an index map: (sample_idx, chunk_idx) for each chunk in each track
-        self.index_map: List[Tuple[int, int]] = []
-        self.audio_io = SimpleAudioIO()
-        self.chunk_len = int(self.sample_rate * self.duration)
-        self.first_wavform : torch.Tensor = None
+        # 2) Prepare cache directory and SQLite mapping for component files
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        init_db = not DB_FILENAME.exists()
+        self.db = sqlite3.connect(str(DB_FILENAME))
+        if init_db:
+            self._create_db()
+        # Ensure each component file (.pt) exists and is registered in DB
+        self._ensure_cache_components()
 
-        # creating index map for audio
-        self.create_index_map()
+        # 3) Build in-memory index of (track_idx, chunk_idx)
+        self.index_map: List[Tuple[int,int]] = []
+        self._track_lengths: Dict[int,int] = {}
+        for i, sample in enumerate(self.samples):
+            # load only  first component to determine chunk size
+            comp0 = self.components[0]
+            cache_path = self._get_cache_path(i, comp0)
+            chunks = torch.load(cache_path)
+            n_chunks = chunks.size(0)
+            self._track_lengths[i] = n_chunks
+            for c in range(n_chunks):
+                self.index_map.append((i, c))
 
-        # Determine spec-shape using first chunk
-        waveform = self.first_wavform
-        pad = self.chunk_len * math.ceil(waveform.shape[1] / self.chunk_len) - waveform.shape[1]
-        if pad > 0:
-            waveform = F.pad(waveform, (0, pad))
-        chunks = waveform.unfold(1, self.chunk_len, self.chunk_len).permute(1, 0, 2)
-        first_chunk = chunks[0]
+        # 4) Setup transformation pipeline & spec_shape using first chunk
+        first_track, first_chunk_idx = self.index_map[0]
+        cache0 = torch.load(self._get_cache_path(first_track, self.components[0]))
+        first_chunk = cache0[first_chunk_idx]
         self.spec_shape = get_shape_first_sample(first_chunk)
-
-        # Build pipeline
         self.pipeline = MyPipeline(
             spec_transforms=spec_transform,
             wav_transforms=wav_transform,
@@ -147,40 +154,109 @@ class AudioDatasetFolder(Dataset):
             perriferal_name=perriferal_name,
         )
 
+        # 5) In-memory cache of loaded .pt per (track_idx, component)
+        self._loaded_tracks: Dict[Tuple[int,str], torch.Tensor] = {}
+        self._current_cached_track: Optional[int] = None
+        
+    def _create_db(self):
+        c = self.db.cursor()
+        c.execute(
+            '''CREATE TABLE components (
+                   track_idx INTEGER,
+                   component TEXT,
+                   cache_path TEXT,
+                   PRIMARY KEY (track_idx, component)
+               )'''
+        )
+        self.db.commit()
+
+
+    def _ensure_cache_components(self):
+        """
+        For each sample track and component, if not registered in DB,
+        load audio, pad & unfold into chunks, save .pt file, and record in DB.
+        Batches all INSERTs into a single transaction at the end.
+        """
+        cursor = self.db.cursor()
+
+        # 1) Fetch all existing (track_idx, component)
+        cursor.execute("SELECT track_idx, component FROM components")
+        existing = set(cursor.fetchall())  # e.g. {(0, "mixture"), (0, "drums"), ...}
+
+        # 2) Prepare a list to collect new rows
+        to_insert: List[Tuple[int,str,str]] = []
+
+        # 3) Loop through every (i, comp); for missing ones, do chunking + save
+        for i, sample in enumerate(self.samples):
+            for comp in self.components:
+                key = (i, comp)
+                if key in existing:
+                    continue  # already cached
+
+                # load + resample
+                wav, _ = self.audio_io.load(sample[comp], sample_rate=self.sample_rate)
+
+                # pad to multiple of chunk_len
+                total = wav.size(1)
+                n_chunks = math.ceil(total / self.chunk_len)
+                pad_amt = n_chunks * self.chunk_len - total
+                if pad_amt > 0:
+                    wav = F.pad(wav, (0, pad_amt))
+
+                # split -> (n_chunks, channels, chunk_len)
+                chunks = wav.unfold(1, self.chunk_len, self.chunk_len) \
+                            .permute(1, 0, 2)
+
+                # save to disk
+                cache_path = CACHE_DIR / f"track_{i}_{comp}.pt"
+                torch.save(chunks, str(cache_path))
+
+                # queue up an INSERT
+                to_insert.append((i, comp, str(cache_path)))
+
+        # 4) Batch-insert all new rows in one go
+        if to_insert:
+            cursor.executemany(
+                "INSERT INTO components (track_idx, component, cache_path) VALUES (?, ?, ?)",
+                to_insert
+            )
+            self.db.commit()
+
+    def _get_cache_path(self, track_idx: int, component: str) -> str:
+        c = self.db.cursor()
+        c.execute(
+            "SELECT cache_path FROM components WHERE track_idx=? AND component=?",
+            (track_idx, component)
+        )
+        row = c.fetchone()
+        if not row:
+            raise KeyError(f"No cache entry for track {track_idx}, component {component}")
+        return row[0]
+
     def __len__(self) -> int:
         return len(self.index_map)
 
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
-        sample_idx, chunk_idx = self.index_map[idx]
-        sample = self.samples[sample_idx]
+        track_idx, chunk_idx = self.index_map[idx]
         out: Dict[str, torch.Tensor] = {}
 
+        # If we’ve moved on to a new track, throw away the old one
+        if self._current_cached_track is None or self._current_cached_track != track_idx:
+            self._loaded_tracks.clear()
+            self._current_cached_track = track_idx
+
+        # Now load only this track’s components (and leave them until we switch again)
         for comp in self.components:
-            path = Path(sample[comp])
-            if self.audio_dir and not path.is_absolute():
-                path = self.audio_dir / path
-            waveform, _ = self.audio_io.load(path, sample_rate=self.sample_rate)
-            total = waveform.shape[1]
-            pad = self.chunk_len * math.ceil(total / self.chunk_len) - total
-            if pad > 0:
-                waveform = F.pad(waveform, (0, pad))
-            chunks = waveform.unfold(1, self.chunk_len, self.chunk_len).permute(1, 0, 2)
+            key = (track_idx, comp)
+            if key not in self._loaded_tracks:
+                cache_path = self._get_cache_path(track_idx, comp)
+                # this loads the entire chunk‐tensor for this component
+                self._loaded_tracks[key] = torch.load(cache_path)
+            chunks = self._loaded_tracks[key]
             chunk_wave = chunks[chunk_idx]
-            out[comp] = self.pipeline(chunk_wave,component=comp)
+            out[comp] = self.pipeline(chunk_wave, component=comp)
 
         if self.is_track_id:
-            out['track_id'] = sample.get('track_id', '')
+            out['track_id'] = self.samples[track_idx].get('track_id', '')
+
         return out
-    
-    def create_index_map(self):
-        for i, sample in enumerate(self.samples):
-            path = Path(sample[self.components[0]])
-            if self.audio_dir and not path.is_absolute():
-                path = self.audio_dir / path
-            waveform, _ = self.audio_io.load(path, sample_rate=self.sample_rate)
-            if i == 0:
-                self.first_wavform = waveform
-            total = waveform.shape[1]
-            n_chunks = math.ceil(total / self.chunk_len)
-            for c in range(n_chunks):
-                self.index_map.append((i, c))

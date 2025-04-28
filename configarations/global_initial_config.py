@@ -1,3 +1,5 @@
+import torch 
+
 # GLOBAL CONFIGARATIONS
 SAMPLE_RATE = 16000
 DURATION = 5.0
@@ -14,6 +16,7 @@ CACHE_DIR_PATH = None
 DB_FILENAME = None
 DB_FILE_PATH = None 
 WAV_LENGTH = None
+WINDOW_CPU = None
 
 def update_config(
     sample_rate=None,
@@ -33,7 +36,7 @@ def update_config(
 ):
     global SAMPLE_RATE, DURATION, INPUT_NAME, PERRIFERAL_NAME, IS_TRACK_ID
     global TRANSFORMS, AUDIO_DIR, COMPONENTS, CSV_FILE,N_FFT,HOP_LENGTH
-    global CACHE_DIR_PATH,DB_FILENAME,DB_FILE_PATH,WAV_LENGTH
+    global CACHE_DIR_PATH,DB_FILENAME,DB_FILE_PATH,WAV_LENGTH, WINDOW_CPU
 
     if sample_rate is not None:
         SAMPLE_RATE = sample_rate
@@ -55,6 +58,7 @@ def update_config(
         CSV_FILE = csv_file
     if n_fft is not None:
         N_FFT = n_fft
+        WINDOW_CPU = torch.hann_window(N_FFT, device="cpu")
     if hop_length is not None:
         HOP_LENGTH = hop_length
     if cache_dir_path != None:

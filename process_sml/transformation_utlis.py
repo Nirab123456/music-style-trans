@@ -21,7 +21,12 @@ def compute_spectrogram(
     normalized : bool = False
 ) -> torch.Tensor:
     """Compute the magnitude spectrogram using torchaudio.functional.spectrogram."""
-    window = torch.hann_window(n_fft, device=waveform.device)
+    if GI.WINDOW_CPU != None:
+        window = GI.WINDOW_CPU
+    else:
+        window = torch.hann_window(n_fft, device=waveform.device)
+    
+
     spec = torchaudio.functional.spectrogram(
         waveform=waveform,
         pad=0,

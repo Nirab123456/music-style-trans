@@ -1,14 +1,11 @@
 # my_pipeline.py
 import torch
 import torch.nn as nn
-import torchaudio
-import torchaudio.transforms as T
 import typing 
-import torch.nn.functional as F
 
 
 # Import helper functions and individual transform classes.
-from .transformation_utlis import compute_spectrogram, to_stereo
+from .transformation_utlis import compute_spectrogram, to_stereo , adjust_phase_shape, adjust_spec_shape 
 from .wav_transform_utils import (
     RandomPitchShift_wav,
     RandomVolume_wav,
@@ -22,69 +19,6 @@ from .spec_transform import (
     RandomTimeStretch_spec
 )
 
-
-def adjust_phase_shape(phase: torch.Tensor, target_shape: typing.Tuple[int, int]) -> torch.Tensor:
-    """
-    Adjust the last two dimensions of a phase tensor to match target_shape.
-    
-    Args:
-        phase (torch.Tensor): Phase tensor of shape [channels, n_freq, time].
-        target_shape (Tuple[int, int]): Desired (n_freq, time) shape.
-    
-    Returns:
-        torch.Tensor: Phase tensor resized to [channels, *target_shape].
-    """
-    current_shape = phase.shape[-2:]
-    if current_shape == target_shape:
-        return phase
-
-    # Unsqueeze a batch dim so interpolate works on 4D ([1, C, F, T])
-    phase_adjusted = F.interpolate(
-        phase.unsqueeze(0),
-        size=target_shape,
-        mode='bilinear',
-        align_corners=False
-    )
-    return phase_adjusted.squeeze(0)
-
-
-def adjust_spec_shape(spec: torch.Tensor, target_shape: typing.Tuple[int, int]) -> torch.Tensor:
-    """
-    Adjust the last two dimensions of a spectrogram tensor.
-    
-    Args:
-        spec (torch.Tensor): Spectrogram of shape [channels, n_freq, time].
-        target_shape (Tuple[int, int]): The desired (n_freq, time) shape.
-    
-    Returns:
-        torch.Tensor: Adjusted spectrogram.
-    """
-    target_shape = target_shape
-    current_shape = spec.shape[-2:]
-    if current_shape == target_shape:
-        return spec
-
-    # spec.unsqueeze(0) adds a batch dimension so that interpolate works on 4D data.
-    spec_adjusted = F.interpolate(
-        spec.unsqueeze(0),  # shape: [1, channels, n_freq, time]
-        size=target_shape,
-        mode='bilinear',
-        align_corners=False
-    )
-    # Remove the added batch dimension
-    return spec_adjusted.squeeze(0)
-
-def get_shape_first_sample(waveform):
-    waveform = to_stereo(waveform)
-    wav_shape = waveform.shape
-    #in 0th indaxing we want the size of first index [2,x]-> we want x first index 2 because we ensured stereo
-    length = wav_shape[1]
-    spec = compute_spectrogram(waveform)
-    spec = spec.abs()
-    shape = spec.shape
-
-    return shape,length
-    
 
 class MyPipeline(nn.Module):
     def __init__(self,

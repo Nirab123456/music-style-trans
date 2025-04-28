@@ -10,29 +10,10 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset
 import torchaudio
 import torchaudio.transforms as T
-
-from .transformation_pipeline import MyPipeline, get_shape_first_sample
+from .transformation_utlis import get_shape_first_sample
+from .transformation_pipeline import MyPipeline
 import configarations.global_initial_config as GI
 
-# -----------------------------------------------------------------------------
-# CONFIGURATION (Global Variables)
-# -----------------------------------------------------------------------------
-USER_INPUT = {
-    "sample_rate": 44000,
-    "duration": 20.0,
-    "input_name": "mixture",
-    "perriferal_name": ["drums", "bass"],
-    "is_track_id": True,
-    "audio_dir": ".",
-    "components": ["mixture", "drums", "bass"],
-    "csv_file": "dataset_index.csv"
-}
-
-#has to be linxed with global initial configaration
-CACHE_DIR = Path(".cache_chunks")
-DB_FILENAME = CACHE_DIR / "index.db"
-
-#-----------------------------------------------------
 class SimpleAudioIO:
     def __init__(self):
         self._resamplers: Dict[Tuple[int,int], T.Resample] = {}
@@ -108,10 +89,10 @@ class AudioDatasetFolder(Dataset):
         # 2) Prepare cache directory and SQLite mapping for component files
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        db_filepath = CACHE_DIR / cache_db_name
-        init_db = not db_filepath.exists()
+        db_filepath = f"{cache_dir}/{cache_db_name}"
+        init_db = os.path.exists(db_filepath)
         self.db = sqlite3.connect(str(db_filepath))
-        if init_db:
+        if not init_db:
             self._create_db()
         # Ensure each component file (.pt) exists and is registered in DB
         self._ensure_cache_components()
@@ -146,7 +127,7 @@ class AudioDatasetFolder(Dataset):
         self._loaded_tracks: Dict[Tuple[int,str], torch.Tensor] = {}
         self._current_cached_track: Optional[int] = None
         # Update global config
-        USER_INPUT.update({
+        USER_INPUT = {
             "sample_rate": sample_rate,
             "duration": duration,
             "input_name": input_name,
@@ -161,7 +142,7 @@ class AudioDatasetFolder(Dataset):
             "cache_dir_path" : self.cache_dir,
             "db_filename" : cache_db_name,
 
-        })
+        } 
         GI.update_config(**USER_INPUT)
   
     def _create_db(self):

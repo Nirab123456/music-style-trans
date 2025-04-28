@@ -1,5 +1,6 @@
 import torch
-from typing import Callable, List , Optional
+import torch.functional as F
+from typing import Callable, List , Optional,Tuple
 import torchaudio
 import configarations.global_initial_config as GI
 
@@ -158,7 +159,7 @@ def reconstruct_waveform(
     return waveform
 
 
-def adjust_phase_shape(phase: torch.Tensor, target_shape: typing.Tuple[int, int]) -> torch.Tensor:
+def adjust_phase_shape(phase: torch.Tensor, target_shape:Tuple[int, int]) -> torch.Tensor:
     """
     Adjust the last two dimensions of a phase tensor to match target_shape.
     
@@ -183,7 +184,7 @@ def adjust_phase_shape(phase: torch.Tensor, target_shape: typing.Tuple[int, int]
     return phase_adjusted.squeeze(0)
 
 
-def adjust_spec_shape(spec: torch.Tensor, target_shape: typing.Tuple[int, int]) -> torch.Tensor:
+def adjust_spec_shape(spec: torch.Tensor, target_shape: Tuple[int, int]) -> torch.Tensor:
     """
     Adjust the last two dimensions of a spectrogram tensor.
     

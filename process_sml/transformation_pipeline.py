@@ -76,11 +76,14 @@ def adjust_spec_shape(spec: torch.Tensor, target_shape: typing.Tuple[int, int]) 
 
 def get_shape_first_sample(waveform):
     waveform = to_stereo(waveform)
+    wav_shape = waveform.shape
+    #in 0th indaxing we want the size of first index [2,x]-> we want x first index 2 because we ensured stereo
+    length = wav_shape[1]
     spec = compute_spectrogram(waveform)
     spec = spec.abs()
     shape = spec.shape
 
-    return shape
+    return shape,length
     
 
 class MyPipeline(nn.Module):

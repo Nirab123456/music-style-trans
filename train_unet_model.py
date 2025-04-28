@@ -96,7 +96,7 @@ model = model.to(device)
 # Loss Function, Optimizer, Scheduler
 # -------------------------------
 # Use L1 loss for source separation.
-criterion = nn.L1Loss()
+criterion = nn.MSELoss()
 # Create the optimizer using the model parameters.
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
 # Create a learning rate scheduler.

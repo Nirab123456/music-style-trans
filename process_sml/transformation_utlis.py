@@ -70,7 +70,7 @@ def batch_reconstruct_waveform(
     pad_mode: str = "reflect",
     normalized: bool = False,
     onesided: bool = True,
-    length: int = 80000,
+    length: int = None,
 ) -> torch.Tensor:
     """
     Reconstruct a batch of waveforms from complex spectrograms on GPU.
@@ -87,6 +87,7 @@ def batch_reconstruct_waveform(
     Returns:
         waveforms (B×C×L, float): reconstructed time-domain signals.
     """
+    length = length if length is not None else GI.WAV_LENGTH
     B, C, F, T = complex_spec.shape
     # flatten batch & channel dims so istft sees a 3D input (N, F, T)
     spec_flat = complex_spec.reshape(B * C, F, T)

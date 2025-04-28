@@ -72,8 +72,8 @@ class AudioDatasetFolder(Dataset):
         is_track_id: bool = True,
         n_fft: int = 2048,
         hop_length: int = 512,
-        cache_dir : str = None,
-        cache_db_name : str = None,
+        cache_dir : str = ".cache_chunks",
+        cache_db_name : str = "index.db",
     ) -> None:
         # Basic config
         self.sample_rate = sample_rate
@@ -86,20 +86,6 @@ class AudioDatasetFolder(Dataset):
         self.chunk_len = int(self.sample_rate * self.duration)
         self.audio_io = SimpleAudioIO()
 
-        # Update global config
-        USER_INPUT.update({
-            "sample_rate": sample_rate,
-            "duration": duration,
-            "input_name": input_name,
-            "perriferal_name": perriferal_name,
-            "is_track_id": is_track_id,
-            "audio_dir": audio_dir,
-            "components": components,
-            "csv_file": csv_file,
-            "n_fft": n_fft,
-            "hop_length": hop_length
-        })
-        GI.update_config(**USER_INPUT)
 
         # 1) Read CSV index into self.samples
         self.samples: List[Dict[str, Union[Path,str]]] = []
@@ -120,9 +106,11 @@ class AudioDatasetFolder(Dataset):
                 self.samples.append(entry)
 
         # 2) Prepare cache directory and SQLite mapping for component files
-        CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        init_db = not DB_FILENAME.exists()
-        self.db = sqlite3.connect(str(DB_FILENAME))
+        self.cache_dir = Path(cache_dir)
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        db_filepath = CACHE_DIR / cache_db_name
+        init_db = not db_filepath.exists()
+        self.db = sqlite3.connect(str(db_filepath))
         if init_db:
             self._create_db()
         # Ensure each component file (.pt) exists and is registered in DB
@@ -145,7 +133,7 @@ class AudioDatasetFolder(Dataset):
         first_track, first_chunk_idx = self.index_map[0]
         cache0 = torch.load(self._get_cache_path(first_track, self.components[0]))
         first_chunk = cache0[first_chunk_idx]
-        self.spec_shape = get_shape_first_sample(first_chunk)
+        self.spec_shape , self.wav_length = get_shape_first_sample(first_chunk)
         self.pipeline = MyPipeline(
             spec_transforms=spec_transform,
             wav_transforms=wav_transform,
@@ -157,7 +145,25 @@ class AudioDatasetFolder(Dataset):
         # 5) In-memory cache of loaded .pt per (track_idx, component)
         self._loaded_tracks: Dict[Tuple[int,str], torch.Tensor] = {}
         self._current_cached_track: Optional[int] = None
-        
+        # Update global config
+        USER_INPUT.update({
+            "sample_rate": sample_rate,
+            "duration": duration,
+            "input_name": input_name,
+            "perriferal_name": perriferal_name,
+            "is_track_id": is_track_id,
+            "audio_dir": audio_dir,
+            "components": components,
+            "csv_file": csv_file,
+            "n_fft": n_fft,
+            "hop_length": hop_length,
+            "wav_length":self.wav_length,
+            "cache_dir_path" : self.cache_dir,
+            "db_filename" : cache_db_name,
+
+        })
+        GI.update_config(**USER_INPUT)
+  
     def _create_db(self):
         c = self.db.cursor()
         c.execute(
@@ -208,7 +214,7 @@ class AudioDatasetFolder(Dataset):
                             .permute(1, 0, 2)
 
                 # save to disk
-                cache_path = CACHE_DIR / f"track_{i}_{comp}.pt"
+                cache_path = self.cache_dir / f"track_{i}_{comp}.pt"
                 torch.save(chunks, str(cache_path))
 
                 # queue up an INSERT

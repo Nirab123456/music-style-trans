@@ -13,6 +13,7 @@ HOP_LENGTH = 512
 CACHE_DIR_PATH = None
 DB_FILENAME = None
 DB_FILE_PATH = None 
+WAV_LENGTH = None
 
 def update_config(
     sample_rate=None,
@@ -28,11 +29,11 @@ def update_config(
     hop_length = None,
     cache_dir_path = None,
     db_filename = None,
-    db_file_path = None,
+    wav_length = None,
 ):
     global SAMPLE_RATE, DURATION, INPUT_NAME, PERRIFERAL_NAME, IS_TRACK_ID
     global TRANSFORMS, AUDIO_DIR, COMPONENTS, CSV_FILE,N_FFT,HOP_LENGTH
-    global CACHE_DIR_PATH,DB_FILENAME,DB_FILE_PATH
+    global CACHE_DIR_PATH,DB_FILENAME,DB_FILE_PATH,WAV_LENGTH
 
     if sample_rate is not None:
         SAMPLE_RATE = sample_rate
@@ -62,6 +63,8 @@ def update_config(
         DB_FILENAME = db_filename
     if CACHE_DIR_PATH and DB_FILENAME != None:
         DB_FILE_PATH = CACHE_DIR_PATH/DB_FILENAME
+    if wav_length != None:
+        WAV_LENGTH = wav_length
 
 
 

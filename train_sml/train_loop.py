@@ -20,7 +20,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.optim import lr_scheduler
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torch.utils.tensorboard import SummaryWriter
 from process_sml import batch_reconstruct_waveform
 
@@ -30,7 +30,8 @@ from process_sml import batch_reconstruct_waveform
 # -----------------------------------------------------------------------------
 def train_model_source_separation(
     model: nn.Module,
-    dataloaders: Dict[str, DataLoader],
+    train_dataset :Dataset,
+    test_dataset :Dataset,
     criterion: nn.Module,
     optimizer: optim.Optimizer,
     scheduler: lr_scheduler._LRScheduler,
@@ -66,6 +67,14 @@ def train_model_source_separation(
     Returns:
         The best model (with lowest validation loss).
     """
+
+    # Split dataset into train and validation (e.g., 80/20 split).
+    train_dataset_size = len(train_dataset)
+    train_indices = list(range(train_dataset_size))
+    
+    # test_dataset_size = len(test_dataset)
+    # test_indices = list(range(test_dataset_size))
+
     writer = SummaryWriter(log_dir)
     best_model_wts = copy.deepcopy(model.state_dict())
     best_loss = float("inf")
@@ -83,7 +92,14 @@ def train_model_source_separation(
 
             running_loss = 0.0
             num_samples = 0
-            data_loader = dataloaders[phase]
+            
+            if phase == "train":
+                train_sampler = torch.utils.data.SubsetRandomSampler(train_indices)
+                data_loader = DataLoader(train_dataset, batch_size=32, sampler=train_sampler)
+            else:
+                data_loader = DataLoader(test_dataset, batch_size=32)
+
+
 
             for batch_idx, batch in enumerate(data_loader):
                 # Get the input tensor using the provided input_name key and ensure a channel dimension.

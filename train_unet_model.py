@@ -48,8 +48,8 @@ random.seed(42)
 device: torch.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Create the dataset.
-dataset_multi = AudioDatasetFolder(
-    csv_file='output_stems/musdb18_index_20250408_121813.csv',
+dataset_train = AudioDatasetFolder(
+    csv_file='output_stems/train.csv',
     audio_dir='.',  # adjust as needed
     components=COMPONENT_MAP,
     sample_rate=16000,
@@ -59,20 +59,18 @@ dataset_multi = AudioDatasetFolder(
     is_track_id=True,
     input_name= "mixture"
 )
+dataset_val = AudioDatasetFolder(
+    csv_file='output_stems/test.csv',
+    audio_dir='.',  # adjust as needed
+    components=COMPONENT_MAP,
+    sample_rate=16000,
+    duration=5.0,
+    is_track_id=True,
+    input_name= "mixture",
+
+)
 
 
-
-
-# Split dataset into train and validation (e.g., 80/20 split).
-dataset_size = len(dataset_multi)
-indices = list(range(dataset_size))
-split = int(0.8 * dataset_size)
-train_indices, val_indices = indices[:split], indices[split:]
-train_sampler = torch.utils.data.SubsetRandomSampler(train_indices)
-val_sampler = torch.utils.data.SubsetRandomSampler(val_indices)
-train_loader = DataLoader(dataset_multi, batch_size=32, sampler=train_sampler)
-val_loader = DataLoader(dataset_multi, batch_size=32, sampler=val_sampler)
-dataloaders: Dict[str, DataLoader] = {"train": train_loader, "val": val_loader}
 
 # -------------------------------
 # Model Integration
@@ -111,7 +109,8 @@ if __name__ == '__main__':
     # Here, the input key is "mixture" and label names are defined as above.
     best_model = train_model_source_separation(
         model=model,
-        dataloaders=dataloaders,
+        train_dataset=dataset_train,
+        test_dataset=dataset_val,
         criterion=criterion,
         optimizer=optimizer,
         scheduler=scheduler,

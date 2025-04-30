@@ -44,30 +44,18 @@ class MyPipeline(nn.Module):
         self.input_name =input_name
         self.perriferal_name = perriferal_name
 
-        # Set default waveform transforms if none provided.
-        if wav_transforms is None:
-            self.wav_transforms = nn.Sequential(
-                RandomVolume_wav(),        # adjust amplitude.
-                RandomAbsoluteNoise_wav(), # add noise.
-                RandomFade_wav()           # fade in/out.
-            )
-        else:
-            self.wav_transforms = wav_transforms
+        # If user passed None, skip transforms entirely
+        self.wav_transforms = wav_transforms  # keep None to skip
+        self.spec_transforms = list(spec_transforms) if spec_transforms is not None else []
 
-        # Set default spectrogram transforms if none provided.
-        if spec_transforms is None:
-            self.spec_transforms = nn.ModuleList([
-                RandomFrequencyMasking_spec(max_freq_mask_param=30, iid_masks=False),
-                RandomTimeMasking_spec(max_time_mask_param=80, iid_masks=False, max_proportion=1.0),
-                RandomTimeStretch_spec(n_fft=2048, hop_length=256, rate_range=(0.8, 1.25))
-            ])
-        else:
-            self.spec_transforms = spec_transforms
-
-        self._complex_transforms = [t for t in self.spec_transforms if isinstance(t, RandomTimeStretch_spec)] 
-        self._real_transforms    = [t for t in self.spec_transforms if not isinstance(t, RandomTimeStretch_spec)] 
-        self._use_complex = len(self._complex_transforms) > 0 
-
+        # Separate transforms into complex-only and real-only lists
+        self._complex_transforms = [
+            t for t in self.spec_transforms if isinstance(t, RandomTimeStretch_spec)
+        ]
+        self._real_transforms = [
+            t for t in self.spec_transforms if not isinstance(t, RandomTimeStretch_spec)
+        ]
+        self._use_complex = bool(self._complex_transforms)
 
     def forward(self, waveform: torch.Tensor, component: str ) -> torch.Tensor:
         """
@@ -82,30 +70,37 @@ class MyPipeline(nn.Module):
         Returns:
             torch.Tensor: The final transformed spectrogram.
         """
-        waveform = to_stereo(waveform)
-        phase = None
-
-        if component == self.input_name or (self.perriferal_name != None and component in self.perriferal_name):
-            
-            if self.wav_transforms:
-                waveform = self.wav_transforms(waveform)
-
-            if self._use_complex: 
-                complex_spec = compute_spectrogram(waveform) 
-            for t in self._complex_transforms:         
-                complex_spec = t(complex_spec) 
-                phase = complex_spec.angle() 
-                spec  = complex_spec.abs() 
-            else: 
-                spec  = compute_spectrogram(waveform).abs() 
-                phase = spec.angle()
-                spec = spec.abs()
-            
-            for t in self._real_transforms: 
-                spec = t(spec)             
-            spec = adjust_spec_shape(spec, self.shape_of_first_nontransformed_spec_sample[-2:])
-            phase = adjust_phase_shape(phase, self.shape_of_first_nontransformed_spec_sample[-2:])
-            combined = torch.cat((spec, phase), dim=0)  # (4, H, W)
-            return combined
-        else:
+        # Bypass if not target component
+        if component != self.input_name and (
+            self.perriferal_name is None or component not in self.perriferal_name
+        ):
             return waveform
+
+        # Apply waveform transforms if provided
+        if self.wav_transforms is not None:
+            waveform = self.wav_transforms(waveform)  # type: ignore
+
+        # Compute spectrogram and apply complex transforms if any
+        if self._use_complex:
+            complex_spec = compute_spectrogram(waveform)
+            for t in self._complex_transforms:
+                complex_spec = t(complex_spec)
+            phase = complex_spec.angle()
+            spec = complex_spec.abs()
+        else:
+            full_spec = compute_spectrogram(waveform)
+            phase = full_spec.angle()
+            spec = full_spec.abs()
+
+        # Apply real-only spectrogram transforms
+        for t in self._real_transforms:
+            spec = t(spec)
+
+        # Adjust shapes if needed
+        if self.shape_of_first_nontransformed_spec_sample is not None:
+            target = self.shape_of_first_nontransformed_spec_sample[-2:]
+            spec = adjust_spec_shape(spec, target)
+            phase = adjust_phase_shape(phase, target)
+
+        # Concatenate magnitude and phase
+        return torch.cat((spec, phase), dim=0)

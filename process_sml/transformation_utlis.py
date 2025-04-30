@@ -1,5 +1,5 @@
 import torch
-import torch.functional as F
+import torch.nn.functional as F
 from typing import Callable, List , Optional,Tuple
 import torchaudio
 import configarations.global_initial_config as GI

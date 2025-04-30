@@ -20,3 +20,4 @@ __pycache__
 /reconstruction_wev
 /test
 .cache_chunks
+/inference_outputs

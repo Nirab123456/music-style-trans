@@ -23,6 +23,7 @@ from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.tensorboard import SummaryWriter
 from process_sml import batch_reconstruct_waveform
+import torchaudio
 
 
 # -----------------------------------------------------------------------------
@@ -237,3 +238,64 @@ def test_model_source_separation(
 
     avg_loss = running_loss / num_samples
     print(f"Test Loss: {avg_loss:.4f}")
+
+
+def infer_and_save(
+    model: torch.nn.Module,
+    dataloader: DataLoader,
+    device: torch.device,
+    output_dir: str,
+    input_name: str,
+    label_names: list,
+    sample_rate: int
+):
+    """
+    Run inference on the dataloader and save both the reconstructed mixture
+    and each separated source as .wav files.
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    model.to(device).eval()
+
+    with torch.no_grad():
+        for batch in dataloader:
+            # Get the input tensor using the provided input_name key and ensure it has a channel dimension.
+            inputs = batch[input_name]
+            if inputs.dim() == 2:
+                inputs = inputs.unsqueeze(0)
+            inputs = inputs.to(device)
+            
+            # Get ground truth spectrograms for each source from label_names.
+            y_true = {}
+            for key in label_names:
+                y = batch[key]
+                if y.dim() == 2:
+                    y = y.unsqueeze(0)
+                y_true[key] = y.to(device)
+
+            # Run the model forward pass.
+            outputs: Dict[str, torch.Tensor] = model(inputs)
+
+            # ---- 3) Reconstruct & save each source ----
+            for key in label_names:
+                specphase = outputs[key]   # [B, 2*C, F, T]
+                mag, phase = torch.chunk(specphase, 2, dim=1)
+                complex_spec = torch.polar(mag, phase)   # [B, C, F, T]
+                wavs = batch_reconstruct_waveform(complex_spec)  # [B, C, L]
+                wavs = wavs.cpu()
+
+                for i in range(wavs.size(0)):
+                    torchaudio.save(
+                        os.path.join(output_dir, f"{key}_b_i{i}.wav"),
+                        wavs[i],
+                        sample_rate
+                    )
+            mix_mag, mix_phase = torch.chunk(inputs, 2, dim=1)
+            mix_complex = torch.polar(mix_mag, mix_phase)
+            mix_wavs = batch_reconstruct_waveform(mix_complex).cpu()  # [B, C, L]
+            for i in range(mix_wavs.size(0)):
+                torchaudio.save(
+                    os.path.join(output_dir, f"mixture_b{i}.wav"),
+                    mix_wavs[i],
+                    sample_rate
+                )
+    print(f"✅ All inference outputs saved to {output_dir}")

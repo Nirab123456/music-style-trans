@@ -1,1 +1,1 @@
-Issue 01 : Batch Reconstruction
+main_alpha_v3: we will try to train a model in 4-chennel spec 

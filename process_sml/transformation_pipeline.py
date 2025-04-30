@@ -74,7 +74,12 @@ class MyPipeline(nn.Module):
         if component != self.input_name and (
             self.perriferal_name is None or component not in self.perriferal_name
         ):
-            return waveform
+            waveform = to_stereo(waveform)
+            full_spec = compute_spectrogram(waveform)
+            phase = full_spec.angle()
+            spec = full_spec.abs()
+
+            return torch.cat((spec, phase), dim=0)
 
         # Apply waveform transforms if provided
         if self.wav_transforms is not None:

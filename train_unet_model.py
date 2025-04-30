@@ -49,7 +49,7 @@ device: torch.device = torch.device("cuda" if torch.cuda.is_available() else "cp
 
 # Create the dataset.
 dataset_train = AudioDatasetFolder(
-    csv_file='output_stems/train.csv',
+    csv_file='output_stems/mini.csv',
     audio_dir='.',  # adjust as needed
     components=COMPONENT_MAP,
     sample_rate=16000,
@@ -60,7 +60,7 @@ dataset_train = AudioDatasetFolder(
     input_name= "mixture"
 )
 dataset_val = AudioDatasetFolder(
-    csv_file='output_stems/test.csv',
+    csv_file='output_stems/test_mini.csv',
     audio_dir='.',  # adjust as needed
     components=COMPONENT_MAP,
     sample_rate=16000,

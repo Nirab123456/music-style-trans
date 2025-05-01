@@ -49,22 +49,22 @@ device: torch.device = torch.device("cuda" if torch.cuda.is_available() else "cp
 
 # Create the dataset.
 dataset_train = AudioDatasetFolder(
-    csv_file='output_stems/mini.csv',
+    csv_file='output_stems/train.csv',
     audio_dir='.',  # adjust as needed
     components=COMPONENT_MAP,
     sample_rate=16000,
-    duration=5.0,
+    duration=10.0,
     spec_transform=argS,  # list of transforms
     wav_transform=argW,
     is_track_id=True,
     input_name= "mixture"
 )
 dataset_val = AudioDatasetFolder(
-    csv_file='output_stems/test_mini.csv',
+    csv_file='output_stems/test.csv',
     audio_dir='.',  # adjust as needed
     components=COMPONENT_MAP,
     sample_rate=16000,
-    duration=5.0,
+    duration=10.0,
     is_track_id=True,
     input_name= "mixture",
 
@@ -94,7 +94,7 @@ model = model.to(device)
 # Loss Function, Optimizer, Scheduler
 # -------------------------------
 # Use L1 loss for source separation.
-criterion = nn.MSELoss()
+criterion = nn.L1Loss()
 # Create the optimizer using the model parameters.
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
 # Create a learning rate scheduler.
@@ -111,10 +111,11 @@ if __name__ == '__main__':
         model=model,
         train_dataset=dataset_train,
         test_dataset=dataset_val,
+        batch_size=18,
         criterion=criterion,
         optimizer=optimizer,
         scheduler=scheduler,
-        num_epochs=3,
+        num_epochs=14,
         device=device,
         log_dir='./logs',
         checkpoint_dir='./checkpoints',

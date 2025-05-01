@@ -33,6 +33,7 @@ def train_model_source_separation(
     model: nn.Module,
     train_dataset :Dataset,
     test_dataset :Dataset,
+    batch_size : int,
     criterion: nn.Module,
     optimizer: optim.Optimizer,
     scheduler: lr_scheduler._LRScheduler,
@@ -96,9 +97,9 @@ def train_model_source_separation(
             
             if phase == "train":
                 train_sampler = torch.utils.data.SubsetRandomSampler(train_indices)
-                data_loader = DataLoader(train_dataset, batch_size=32, sampler=train_sampler)
+                data_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=train_sampler)
             else:
-                data_loader = DataLoader(test_dataset, batch_size=32)
+                data_loader = DataLoader(test_dataset, batch_size=batch_size)
 
 
 

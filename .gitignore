@@ -21,3 +21,4 @@ __pycache__
 /test
 .cache_chunks
 /inference_outputs
+/*checkpoints

@@ -94,11 +94,11 @@ model = model.to(device)
 # Loss Function, Optimizer, Scheduler
 # -------------------------------
 # Use L1 loss for source separation.
-criterion = nn.L1Loss()
+criterion = nn.MSELoss()
 # Create the optimizer using the model parameters.
-optimizer = optim.Adam(model.parameters(), lr=1e-3)
-# Create a learning rate scheduler.
-scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1,)
+optimizer = optim.Adam(model.parameters(), lr=1e-4)
+# # Create a learning rate scheduler.
+# scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 
 
 if __name__ == '__main__':
@@ -114,8 +114,8 @@ if __name__ == '__main__':
         batch_size=18,
         criterion=criterion,
         optimizer=optimizer,
-        scheduler=scheduler,
-        num_epochs=14,
+        # scheduler=scheduler,
+        num_epochs=32,
         device=device,
         log_dir='./logs',
         checkpoint_dir='./checkpoints',

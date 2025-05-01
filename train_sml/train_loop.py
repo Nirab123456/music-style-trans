@@ -34,15 +34,15 @@ def train_model_source_separation(
     train_dataset :Dataset,
     test_dataset :Dataset,
     batch_size : int,
-    criterion: nn.Module,
     optimizer: optim.Optimizer,
-    scheduler: lr_scheduler._LRScheduler,
-    num_epochs: int,
-    device: torch.device,
-    log_dir: str,
-    checkpoint_dir: Optional[str],
-    input_name: str,
-    label_names: List[str],
+    criterion: nn.Module = None,
+    scheduler: lr_scheduler._LRScheduler = None,
+    num_epochs: int = 1,
+    device: torch.device = 'cpu',
+    log_dir: str="logs",
+    checkpoint_dir: Optional[str] ="checkpoints" ,
+    input_name: str = None,
+    label_names: List[str] = None,
     print_freq: int = 10,
 ) -> nn.Module:
     """
@@ -154,20 +154,34 @@ def train_model_source_separation(
                 best_loss = epoch_loss
                 best_model_wts = copy.deepcopy(model.state_dict())
 
-        scheduler.step()
+        if scheduler != None:
+            scheduler.step()
 
-        if checkpoint_dir:
-            os.makedirs(checkpoint_dir, exist_ok=True)
-            checkpoint_path = os.path.join(checkpoint_dir, f"model_epoch_{epoch+1}.pth")
-            checkpoint_state = {
-                "epoch": epoch + 1,
-                "model_state_dict": model.state_dict(),
-                "optimizer_state_dict": optimizer.state_dict(),
-                "scheduler_state_dict": scheduler.state_dict(),
-                "val_loss": epoch_loss,
-            }
-            torch.save(checkpoint_state, checkpoint_path)
-            print(f"Checkpoint saved at: {checkpoint_path}")
+            if checkpoint_dir:
+                os.makedirs(checkpoint_dir, exist_ok=True)
+                checkpoint_path = os.path.join(checkpoint_dir, f"model_epoch_{epoch+1}.pth")
+                checkpoint_state = {
+                    "epoch": epoch + 1,
+                    "model_state_dict": model.state_dict(),
+                    "optimizer_state_dict": optimizer.state_dict(),
+                    "scheduler_state_dict": scheduler.state_dict(),
+                    "val_loss": epoch_loss,
+                }
+                torch.save(checkpoint_state, checkpoint_path)
+                print(f"Checkpoint saved at: {checkpoint_path}")
+        else:
+            if checkpoint_dir:
+                os.makedirs(checkpoint_dir, exist_ok=True)
+                checkpoint_path = os.path.join(checkpoint_dir, f"model_epoch_{epoch+1}.pth")
+                checkpoint_state = {
+                    "epoch": epoch + 1,
+                    "model_state_dict": model.state_dict(),
+                    "optimizer_state_dict": optimizer.state_dict(),
+                    "val_loss": epoch_loss,
+                }
+                torch.save(checkpoint_state, checkpoint_path)
+                print(f"Checkpoint saved at: {checkpoint_path}")
+
 
     time_elapsed = time.time() - since
     print(f"Training complete in {int(time_elapsed // 60)}m {int(time_elapsed % 60)}s")

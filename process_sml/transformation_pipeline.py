@@ -70,10 +70,9 @@ class MyPipeline(nn.Module):
         ):
             waveform = to_stereo(waveform)
             full_spec = compute_spectrogram(waveform)
-            phase = full_spec.angle()
             spec = full_spec.abs()
 
-            return torch.cat((spec, phase), dim=0)
+            return spec
 
         # Apply waveform transforms if provided
         if self.wav_transforms is not None:
@@ -84,11 +83,9 @@ class MyPipeline(nn.Module):
             complex_spec = compute_spectrogram(waveform)
             for t in self._complex_transforms:
                 complex_spec = t(complex_spec)
-            phase = complex_spec.angle()
             spec = complex_spec.abs()
         else:
             full_spec = compute_spectrogram(waveform)
-            phase = full_spec.angle()
             spec = full_spec.abs()
 
         # Apply real-only spectrogram transforms
@@ -99,7 +96,6 @@ class MyPipeline(nn.Module):
         if self.shape_of_first_nontransformed_spec_sample is not None:
             target = self.shape_of_first_nontransformed_spec_sample[-2:]
             spec = adjust_spec_shape(spec, target)
-            phase = adjust_phase_shape(phase, target)
 
         # Concatenate magnitude and phase
-        return torch.cat((spec, phase), dim=0)
+        return spec

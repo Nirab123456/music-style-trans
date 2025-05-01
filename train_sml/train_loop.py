@@ -31,164 +31,137 @@ import torchaudio
 # -----------------------------------------------------------------------------
 def train_model_source_separation(
     model: nn.Module,
-    train_dataset :Dataset,
-    test_dataset :Dataset,
-    batch_size : int,
+    train_dataset: Dataset,
+    val_dataset: Dataset,
+    batch_size: int,
     optimizer: optim.Optimizer,
-    criterion: nn.Module = None,
-    scheduler: lr_scheduler._LRScheduler = None,
-    num_epochs: int = 1,
-    device: torch.device = 'cpu',
-    log_dir: str="logs",
-    checkpoint_dir: Optional[str] ="checkpoints" ,
+    criterion: nn.Module,
+    num_epochs: int,
+    device: torch.device,
+    scheduler: Optional[lr_scheduler._LRScheduler] = None,
+    log_dir: str = "logs",
+    checkpoint_dir: str = "checkpoints",
     input_name: str = None,
     label_names: List[str] = None,
     print_freq: int = 10,
 ) -> nn.Module:
     """
     Trains the model for a source separation task.
-    The model is assumed to accept an input spectrogram (under key input_name) and output a dictionary
-    with keys corresponding to label_names. The dataset dictionary contains ground truth spectrograms
-    with keys from label_names.
-    
+
     Args:
-        model: Source separation model.
-        dataloaders: Dictionary with 'train' and 'val' DataLoaders.
-        criterion: Loss function (e.g., L1Loss) applied per source.
-        optimizer: Optimizer.
-        scheduler: Learning rate scheduler.
-        num_epochs: Number of training epochs.
-        device: Device for training.
-        log_dir: TensorBoard log directory.
-        checkpoint_dir: Directory to save model checkpoints.
-        input_name: Key in the batch for the input mixture.
-        label_names: List of keys for ground truth sources 
-                     (e.g., ["vocals_spectrogram", "accompaniment_spectrogram"]).
-        print_freq: Frequency (in batches) to print updates.
-    
+        model: source separation model (returns Dict[str, Tensor])
+        train_dataset: training set
+        val_dataset: validation set
+        batch_size: batch size
+        optimizer: optimizer
+        criterion: loss function
+        scheduler: learning rate scheduler (optional)
+        num_epochs: number of epochs
+        device: torch.device
+        log_dir: TensorBoard logging directory
+        checkpoint_dir: directory to save checkpoints
+        input_name: key in batch for input tensor
+        label_names: keys in batch for target tensors
+        print_freq: batches between status prints
     Returns:
-        The best model (with lowest validation loss).
+        model with best validation loss loaded
     """
+    assert criterion is not None, "criterion must be provided"
+    assert label_names, "label_names must be provided"
 
-    # Split dataset into train and validation (e.g., 80/20 split).
-    train_dataset_size = len(train_dataset)
-    train_indices = list(range(train_dataset_size))
-    
-    # test_dataset_size = len(test_dataset)
-    # test_indices = list(range(test_dataset_size))
+    model.to(device)
 
-    writer = SummaryWriter(log_dir)
-    best_model_wts = copy.deepcopy(model.state_dict())
-    best_loss = float("inf")
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True
+    )
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False
+    )
+
+    best_wts = copy.deepcopy(model.state_dict())
+    best_loss = float('inf')
     since = time.time()
 
-    for epoch in range(num_epochs):
-        print(f"Epoch {epoch+1}/{num_epochs}")
-        print("-" * 40)
+    with SummaryWriter(log_dir) as writer:
+        for epoch in range(1, num_epochs+1):
+            print(f"Epoch {epoch}/{num_epochs}")
+            print("-" * 40)
 
-        for phase in ["train", "val"]:
-            if phase == "train":
-                model.train()
-            else:
-                model.eval()
+            for phase, loader in [('train', train_loader), ('val', val_loader)]:
+                is_train = (phase == 'train')
+                model.train() if is_train else model.eval()
 
-            running_loss = 0.0
-            num_samples = 0
-            
-            if phase == "train":
-                train_sampler = torch.utils.data.SubsetRandomSampler(train_indices)
-                data_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=train_sampler)
-            else:
-                data_loader = DataLoader(test_dataset, batch_size=batch_size)
+                running_loss = 0.0
+                total_samples = 0
 
+                for batch_idx, batch in enumerate(loader):
+                    x = batch[input_name]
+                    if x.ndim == 3:
+                        x = x.unsqueeze(0)
+                    x = x.to(device)
 
-
-            for batch_idx, batch in enumerate(data_loader):
-                # Get the input tensor using the provided input_name key and ensure a channel dimension.
-                inputs = batch[input_name]
-                if inputs.dim() == 2:
-                    inputs = inputs.unsqueeze(0)
-                inputs = inputs.to(device)
-
-                # Get ground truth spectrograms for each source using label_names.
-                y_true_dict = {}
-                for key in label_names:
-                    y = batch[key]
-                    if y.dim() == 2:
-                        y = y.unsqueeze(0)
-                    y_true_dict[key] = y.to(device)
-
-                optimizer.zero_grad()
-
-                with torch.set_grad_enabled(phase == "train"):
-                    outputs: Dict[str, torch.Tensor] = model(inputs)
-                    # Compute loss as the sum of per-source losses.
-                    loss = 0.0
+                    y_dict = {}
                     for key in label_names:
-                        output = outputs[key]
-                        
+                        y = batch[key]
+                        if y.ndim == 3:
+                            y = y.unsqueeze(0)
+                        y_dict[key] = y.to(device)
 
-                        loss += criterion(output, y_true_dict[key])
+                    optimizer.zero_grad()
+                    with torch.set_grad_enabled(is_train):
+                        outputs: Dict[str, torch.Tensor] = model(x)
+                        loss = sum(criterion(outputs[k], y_dict[k]) for k in label_names)
+                        if is_train:
+                            loss.backward()
+                            optimizer.step()
 
-                    if phase == "train":
-                        loss.backward()
-                        optimizer.step()
+                    bsz = x.size(0)
+                    running_loss += loss.item() * bsz
+                    total_samples += bsz
 
-                batch_size = inputs.size(0)
-                running_loss += loss.item() * batch_size
-                num_samples += batch_size
+                    if batch_idx % print_freq == 0:
+                        lr = optimizer.param_groups[0]['lr']
+                        print(f"{phase.capitalize()} [{batch_idx}/{len(loader)}] "
+                              f"Loss: {loss.item():.4f} LR: {lr:.6f}")
+                        step = (epoch-1) * len(loader) + batch_idx
+                        writer.add_scalar(f"{phase}/Batch_Loss", loss.item(), step)
+                        writer.add_scalar("LR", lr, step)
 
-                if batch_idx % print_freq == 0:
-                    current_lr = optimizer.param_groups[0]["lr"]
-                    print(f"{phase.capitalize()} Epoch [{epoch+1}/{num_epochs}] Batch [{batch_idx}/{len(data_loader)}] "
-                          f"Loss: {loss.item():.4f} LR: {current_lr:.6f}")
-                    global_step = epoch * len(data_loader) + batch_idx
-                    writer.add_scalar(f"{phase}/Batch_Loss", loss.item(), global_step)
-                    writer.add_scalar("LR", current_lr, global_step)
+                epoch_loss = running_loss / total_samples
+                print(f"{phase.capitalize()} Epoch Loss: {epoch_loss:.4f}")
+                writer.add_scalar(f"{phase}/Epoch_Loss", epoch_loss, epoch)
 
-            epoch_loss = running_loss / num_samples
-            print(f"{phase.capitalize()} Epoch Loss: {epoch_loss:.4f}")
-            writer.add_scalar(f"{phase}/Epoch_Loss", epoch_loss, epoch)
+                if not is_train and epoch_loss < best_loss:
+                    best_loss = epoch_loss
+                    best_wts = copy.deepcopy(model.state_dict())
 
-            if phase == "val" and epoch_loss < best_loss:
-                best_loss = epoch_loss
-                best_model_wts = copy.deepcopy(model.state_dict())
+            # Step scheduler after validation
+            if scheduler is not None:
+                if isinstance(scheduler, lr_scheduler.ReduceLROnPlateau):
+                    scheduler.step(best_loss)
+                else:
+                    scheduler.step()
 
-        if scheduler != None:
-            scheduler.step()
+            # Save checkpoint every epoch
+            os.makedirs(checkpoint_dir, exist_ok=True)
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict() if scheduler else None,
+                'best_loss': best_loss,
+            }, os.path.join(checkpoint_dir, f"epoch_{epoch}.pth"))
+            print(f"Checkpoint saved: epoch_{epoch}.pth")
 
-            if checkpoint_dir:
-                os.makedirs(checkpoint_dir, exist_ok=True)
-                checkpoint_path = os.path.join(checkpoint_dir, f"model_epoch_{epoch+1}.pth")
-                checkpoint_state = {
-                    "epoch": epoch + 1,
-                    "model_state_dict": model.state_dict(),
-                    "optimizer_state_dict": optimizer.state_dict(),
-                    "scheduler_state_dict": scheduler.state_dict(),
-                    "val_loss": epoch_loss,
-                }
-                torch.save(checkpoint_state, checkpoint_path)
-                print(f"Checkpoint saved at: {checkpoint_path}")
-        else:
-            if checkpoint_dir:
-                os.makedirs(checkpoint_dir, exist_ok=True)
-                checkpoint_path = os.path.join(checkpoint_dir, f"model_epoch_{epoch+1}.pth")
-                checkpoint_state = {
-                    "epoch": epoch + 1,
-                    "model_state_dict": model.state_dict(),
-                    "optimizer_state_dict": optimizer.state_dict(),
-                    "val_loss": epoch_loss,
-                }
-                torch.save(checkpoint_state, checkpoint_path)
-                print(f"Checkpoint saved at: {checkpoint_path}")
+        time_elapsed = time.time() - since
+        print(f"Training complete in {int(time_elapsed//60)}m {int(time_elapsed%60)}s. Best val loss: {best_loss:.4f}")
 
-
-    time_elapsed = time.time() - since
-    print(f"Training complete in {int(time_elapsed // 60)}m {int(time_elapsed % 60)}s")
-    print(f"Best val loss: {best_loss:.4f}")
-
-    model.load_state_dict(best_model_wts)
-    writer.close()
+    # Load best weights
+    model.load_state_dict(best_wts)
     return model
 
 # -----------------------------------------------------------------------------

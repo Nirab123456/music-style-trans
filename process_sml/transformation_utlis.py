@@ -40,11 +40,11 @@ def compute_spectrogram(
 
     return spec  # .abs() or .abs()**2 for power
 
-def compute_waveform(
+def compute_waveform_griffinlim(
     mag_spec: torch.Tensor,
     n_fft: int = GI.N_FFT,
     hop_length: int = GI.HOP_LENGTH,
-    num_iters: int = 64
+    num_iters: int = 120
 ) -> torch.Tensor:
     """Reconstruct waveform from magnitude spectrogram using Griffin-Lim."""
     window = torch.hann_window(n_fft).to(mag_spec.device)

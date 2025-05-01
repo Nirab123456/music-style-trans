@@ -49,7 +49,7 @@ device: torch.device = torch.device("cuda" if torch.cuda.is_available() else "cp
 
 # Create the dataset.
 dataset_train = AudioDatasetFolder(
-    csv_file='output_stems/train.csv',
+    csv_file='output_stems/mini.csv',
     audio_dir='.',  # adjust as needed
     components=COMPONENT_MAP,
     sample_rate=16000,
@@ -60,7 +60,7 @@ dataset_train = AudioDatasetFolder(
     input_name= "mixture"
 )
 dataset_val = AudioDatasetFolder(
-    csv_file='output_stems/test.csv',
+    csv_file='output_stems/test_mini.csv',
     audio_dir='.',  # adjust as needed
     components=COMPONENT_MAP,
     sample_rate=16000,
@@ -84,7 +84,7 @@ dataset_val = AudioDatasetFolder(
 # for key in label_names:
 #     model.final_convs[key] = nn.Conv2d(16, 2, kernel_size=1)
 
-model = LiteResUNet(backbone="resnet18",source_names=label_names,pretrained=True,in_channels=4)
+model = LiteResUNet(backbone="resnet18",source_names=label_names,pretrained=True,in_channels=2)
 
 
 # IMPORTANT: Move the entire model to the device after adding the final conv layers.
@@ -94,11 +94,11 @@ model = model.to(device)
 # Loss Function, Optimizer, Scheduler
 # -------------------------------
 # Use L1 loss for source separation.
-criterion = nn.MSELoss()
+criterion = nn.L1Loss()
 # Create the optimizer using the model parameters.
-optimizer = optim.Adam(model.parameters(), lr=1e-4)
+optimizer = optim.Adam(model.parameters(), lr=1e-3)
 # # Create a learning rate scheduler.
-# scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
+scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 
 
 if __name__ == '__main__':
@@ -110,11 +110,11 @@ if __name__ == '__main__':
     best_model = train_model_source_separation(
         model=model,
         train_dataset=dataset_train,
-        test_dataset=dataset_val,
+        val_dataset=dataset_val,
         batch_size=18,
         criterion=criterion,
         optimizer=optimizer,
-        # scheduler=scheduler,
+        scheduler=scheduler,
         num_epochs=32,
         device=device,
         log_dir='./logs',

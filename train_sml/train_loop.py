@@ -44,6 +44,8 @@ def train_model_source_separation(
     input_name: str = None,
     label_names: List[str] = None,
     print_freq: int = 10,
+    resume_checkpoint: Optional[str] = None,   
+
 ) -> nn.Module:
     """
     Trains the model for a source separation task.
@@ -69,101 +71,119 @@ def train_model_source_separation(
     assert criterion is not None, "criterion must be provided"
     assert label_names, "label_names must be provided"
 
+    # Initialize resume parameters
+    start_epoch = 0
+    best_loss = float('inf')
+    best_wts = copy.deepcopy(model.state_dict())
+
+    # Load checkpoint if resuming
+    if resume_checkpoint and os.path.isfile(resume_checkpoint):
+        print(f"Loading checkpoint '{resume_checkpoint}' to resume...")
+        ckpt = torch.load(resume_checkpoint, map_location=device)
+        model.load_state_dict(ckpt['model_state_dict'])
+        optimizer.load_state_dict(ckpt['optimizer_state_dict'])
+        if scheduler is not None and 'scheduler_state_dict' in ckpt and ckpt['scheduler_state_dict']:
+            scheduler.load_state_dict(ckpt['scheduler_state_dict'])
+        start_epoch = ckpt.get('epoch', 0)
+        best_loss = ckpt.get('best_loss', ckpt.get('val_loss', best_loss))
+        best_wts = copy.deepcopy(model.state_dict())
+        print(f"Resumed from epoch {start_epoch}. Best val loss: {best_loss:.4f}")
+    else:
+        print("No valid checkpoint found, starting training from scratch.")
+
     model.to(device)
 
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=batch_size,
-        shuffle=True
-    )
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=batch_size,
-        shuffle=False
-    )
+    # Data loaders
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-    best_wts = copy.deepcopy(model.state_dict())
-    best_loss = float('inf')
     since = time.time()
 
-    with SummaryWriter(log_dir) as writer:
-        for epoch in range(1, num_epochs+1):
-            print(f"Epoch {epoch}/{num_epochs}")
-            print("-" * 40)
+    # Set up TensorBoard
+    os.makedirs(log_dir, exist_ok=True)
+    writer = SummaryWriter(log_dir)
 
-            for phase, loader in [('train', train_loader), ('val', val_loader)]:
-                is_train = (phase == 'train')
-                model.train() if is_train else model.eval()
+    # Main training loop
+    for epoch in range(start_epoch + 1, num_epochs + 1):
+        print(f"Epoch {epoch}/{num_epochs}")
+        print("-" * 40)
 
-                running_loss = 0.0
-                total_samples = 0
+        for phase, loader in [('train', train_loader), ('val', val_loader)]:
+            is_train = (phase == 'train')
+            model.train() if is_train else model.eval()
 
-                for batch_idx, batch in enumerate(loader):
-                    x = batch[input_name]
-                    if x.ndim == 3:
-                        x = x.unsqueeze(0)
-                    x = x.to(device)
+            running_loss = 0.0
+            total_samples = 0
 
-                    y_dict = {}
-                    for key in label_names:
-                        y = batch[key]
-                        if y.ndim == 3:
-                            y = y.unsqueeze(0)
-                        y_dict[key] = y.to(device)
+            for batch_idx, batch in enumerate(loader):
+                # Input
+                x = batch[input_name]
+                if x.ndim == 3:
+                    x = x.unsqueeze(0)
+                x = x.to(device)
 
-                    optimizer.zero_grad()
-                    with torch.set_grad_enabled(is_train):
-                        outputs: Dict[str, torch.Tensor] = model(x)
-                        loss = sum(criterion(outputs[k], y_dict[k]) for k in label_names)
-                        if is_train:
-                            loss.backward()
-                            optimizer.step()
+                # Targets
+                y_dict = {k: batch[k].to(device) for k in label_names}
 
-                    bsz = x.size(0)
-                    running_loss += loss.item() * bsz
-                    total_samples += bsz
+                optimizer.zero_grad()
+                with torch.set_grad_enabled(is_train):
+                    outputs = model(x)
+                    loss = sum(criterion(outputs[k], y_dict[k]) for k in label_names)
+                    if is_train:
+                        loss.backward()
+                        optimizer.step()
 
-                    if batch_idx % print_freq == 0:
-                        lr = optimizer.param_groups[0]['lr']
-                        print(f"{phase.capitalize()} [{batch_idx}/{len(loader)}] "
-                              f"Loss: {loss.item():.4f} LR: {lr:.6f}")
-                        step = (epoch-1) * len(loader) + batch_idx
-                        writer.add_scalar(f"{phase}/Batch_Loss", loss.item(), step)
-                        writer.add_scalar("LR", lr, step)
+                bsz = x.size(0)
+                running_loss += loss.item() * bsz
+                total_samples += bsz
 
-                epoch_loss = running_loss / total_samples
-                print(f"{phase.capitalize()} Epoch Loss: {epoch_loss:.4f}")
-                writer.add_scalar(f"{phase}/Epoch_Loss", epoch_loss, epoch)
+                # Logging per batch
+                if batch_idx % print_freq == 0:
+                    lr = optimizer.param_groups[0]['lr']
+                    print(f"{phase.capitalize()} [{batch_idx}/{len(loader)}] "
+                          f"Loss: {loss.item():.4f} LR: {lr:.6f}")
+                    step = (epoch - 1) * len(train_loader) + batch_idx
+                    writer.add_scalar(f"{phase}/Batch_Loss", loss.item(), step)
+                    writer.add_scalar("LR", lr, step)
 
-                if not is_train and epoch_loss < best_loss:
-                    best_loss = epoch_loss
-                    best_wts = copy.deepcopy(model.state_dict())
+            # Epoch statistics
+            epoch_loss = running_loss / total_samples
+            print(f"{phase.capitalize()} Epoch Loss: {epoch_loss:.4f}")
+            writer.add_scalar(f"{phase}/Epoch_Loss", epoch_loss, epoch)
 
-            # Step scheduler after validation
-            if scheduler is not None:
-                if isinstance(scheduler, lr_scheduler.ReduceLROnPlateau):
-                    scheduler.step(best_loss)
-                else:
-                    scheduler.step()
+            # Save best model weights after validation
+            if phase == 'val' and epoch_loss < best_loss:
+                best_loss = epoch_loss
+                best_wts = copy.deepcopy(model.state_dict())
 
-            # Save checkpoint every epoch
-            os.makedirs(checkpoint_dir, exist_ok=True)
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'scheduler_state_dict': scheduler.state_dict() if scheduler else None,
-                'best_loss': best_loss,
-            }, os.path.join(checkpoint_dir, f"epoch_{epoch}.pth"))
-            print(f"Checkpoint saved: epoch_{epoch}.pth")
+        # Scheduler step
+        if scheduler is not None:
+            if isinstance(scheduler, lr_scheduler.ReduceLROnPlateau):
+                scheduler.step(best_loss)
+            else:
+                scheduler.step()
 
-        time_elapsed = time.time() - since
-        print(f"Training complete in {int(time_elapsed//60)}m {int(time_elapsed%60)}s. Best val loss: {best_loss:.4f}")
+        # Checkpoint save
+        os.makedirs(checkpoint_dir, exist_ok=True)
+        ckpt_path = os.path.join(checkpoint_dir, f"checkpoint_epoch_{epoch}.pth")
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict() if scheduler else None,
+            'best_loss': best_loss,
+        }, ckpt_path)
+        print(f"Saved checkpoint: {ckpt_path}")
 
-    # Load best weights
+    # Wrap up
+    writer.close()
+    time_elapsed = time.time() - since
+    print(f"Training complete in {int(time_elapsed // 60)}m {int(time_elapsed % 60)}s")
+    print(f"Best val loss: {best_loss:.4f}")
+
+    # Load best model weights
     model.load_state_dict(best_wts)
     return model
-
 # -----------------------------------------------------------------------------
 # Testing Function for Source Separation
 # -----------------------------------------------------------------------------

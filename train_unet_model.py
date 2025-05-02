@@ -49,7 +49,7 @@ device: torch.device = torch.device("cuda" if torch.cuda.is_available() else "cp
 
 # Create the dataset.
 dataset_train = AudioDatasetFolder(
-    csv_file='output_stems/mini.csv',
+    csv_file='output_stems/train.csv',
     audio_dir='.',  # adjust as needed
     components=COMPONENT_MAP,
     sample_rate=16000,
@@ -60,7 +60,7 @@ dataset_train = AudioDatasetFolder(
     input_name= "mixture"
 )
 dataset_val = AudioDatasetFolder(
-    csv_file='output_stems/test_mini.csv',
+    csv_file='output_stems/test.csv',
     audio_dir='.',  # adjust as needed
     components=COMPONENT_MAP,
     sample_rate=16000,
@@ -98,7 +98,7 @@ criterion = nn.L1Loss()
 # Create the optimizer using the model parameters.
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
 # # Create a learning rate scheduler.
-scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
+# scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 
 
 if __name__ == '__main__':
@@ -114,12 +114,13 @@ if __name__ == '__main__':
         batch_size=18,
         criterion=criterion,
         optimizer=optimizer,
-        scheduler=scheduler,
-        num_epochs=32,
+        # scheduler=scheduler,
+        num_epochs=150,
         device=device,
         log_dir='./logs',
         checkpoint_dir='./checkpoints',
         input_name="mixture",  # use "mixture" for the input spectrogram from the batch
         label_names=label_names,  # list of target keys for separated sources
         print_freq=10,
+        resume_checkpoint="checkpoints/checkpoint_epoch_41.pth",
     )

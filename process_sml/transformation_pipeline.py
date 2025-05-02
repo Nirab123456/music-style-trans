@@ -12,6 +12,8 @@ from .spec_transform import (
     RandomTimeMasking_spec,
     RandomTimeStretch_spec
 )
+import torchaudio
+import configarations.global_initial_config as GI
 
 
 class MyPipeline(nn.Module):
@@ -50,6 +52,7 @@ class MyPipeline(nn.Module):
             t for t in self.spec_transforms if not isinstance(t, RandomTimeStretch_spec)
         ]
         self._use_complex = bool(self._complex_transforms)
+        self.melscale_transform = torchaudio.transforms.MelScale(sample_rate=GI.SAMPLE_RATE, n_stft=GI.N_FFT // 2 + 1)
 
     def forward(self, waveform: torch.Tensor, component: str ) -> torch.Tensor:
         """
@@ -71,6 +74,7 @@ class MyPipeline(nn.Module):
             waveform = to_stereo(waveform)
             full_spec = compute_spectrogram(waveform)
             spec = full_spec.abs()
+            spec = self.melscale_transform(spec)
 
             return spec
 
@@ -98,4 +102,5 @@ class MyPipeline(nn.Module):
             spec = adjust_spec_shape(spec, target)
 
         # Concatenate magnitude and phase
+        spec = self.melscale_transform(spec)
         return spec

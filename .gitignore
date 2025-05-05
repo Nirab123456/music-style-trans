@@ -24,3 +24,4 @@ __pycache__
 /*checkpoints
 /ALL_CKP
 /test-spec_vs_mel_spec_reconstruction
+/*.wav

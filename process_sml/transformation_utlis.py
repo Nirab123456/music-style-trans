@@ -15,12 +15,18 @@ def to_stereo(waveform: torch.Tensor) -> torch.Tensor:
 # we can also add additional arguments to compute_spectrogram
 def compute_spectrogram(
     waveform: torch.Tensor,
-    n_fft: int = GI.N_FFT,
-    hop_length: int = GI.HOP_LENGTH,
+    n_fft: int = None,
+    hop_length: int = None,
     power : float = None,
     normalized : bool = False
 ) -> torch.Tensor:
     """Compute the magnitude spectrogram using torchaudio.functional.spectrogram."""
+    if n_fft == None:
+        n_fft = GI.N_FFT
+    if hop_length == None:
+        hop_length = GI.HOP_LENGTH
+
+
     if GI.WINDOW_CPU != None:
         window = GI.WINDOW_CPU
     else:
@@ -37,16 +43,26 @@ def compute_spectrogram(
         power=power,  
         normalized=normalized,
     )
-
     return spec  # .abs() or .abs()**2 for power
 
 def compute_waveform_griffinlim(
     mag_spec: torch.Tensor,
-    n_fft: int = GI.N_FFT,
-    hop_length: int = GI.HOP_LENGTH,
+    n_fft: int = None,
+    hop_length: int = None,
     num_iters: int = 120
 ) -> torch.Tensor:
     """Reconstruct waveform from magnitude spectrogram using Griffin-Lim."""
+
+    if n_fft == None:
+        n_fft = GI.N_FFT
+    if hop_length == None:
+        hop_length = GI.HOP_LENGTH
+
+    # print(f"N_fft is {n_fft}")
+    # print(f"hop length is {hop_length}")
+
+
+
     window = torch.hann_window(n_fft).to(mag_spec.device)
 
     spec_power = mag_spec ** 2  # Griffin-Lim uses power spectrogram

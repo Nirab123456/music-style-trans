@@ -51,8 +51,8 @@ class AudioDatasetFolder(Dataset):
         spec_transform: Optional[Union[Callable[[torch.Tensor], torch.Tensor],
                                      List[Callable[[torch.Tensor], torch.Tensor]]]] = None,
         is_track_id: bool = True,
-        n_fft: int = 2048,
-        hop_length: int = 512,
+        n_fft: int = 256,
+        hop_length: int = 32,
         cache_dir : str = ".cache_chunks",
         cache_db_name : str = "index.db",
     ) -> None:
@@ -67,6 +67,22 @@ class AudioDatasetFolder(Dataset):
         self.chunk_len = int(self.sample_rate * self.duration)
         self.audio_io = SimpleAudioIO()
 
+        # Update global config
+        USER_INPUT = {
+            "sample_rate": sample_rate,
+            "duration": duration,
+            "input_name": input_name,
+            "perriferal_name": perriferal_name,
+            "is_track_id": is_track_id,
+            "audio_dir": audio_dir,
+            "components": components,
+            "csv_file": csv_file,
+            "n_fft": n_fft,
+            "hop_length": hop_length,
+
+        } 
+        GI.update_config(**USER_INPUT)
+  
 
         # 1) Read CSV index into self.samples
         self.samples: List[Dict[str, Union[Path,str]]] = []
@@ -121,30 +137,16 @@ class AudioDatasetFolder(Dataset):
             shape_of_untransformed_size=self.spec_shape,
             input_name=input_name,
             perriferal_name=perriferal_name,
+            n_fft=n_fft,
+            hop_length=hop_length,
         )
 
         # 5) In-memory cache of loaded .pt per (track_idx, component)
         self._loaded_tracks: Dict[Tuple[int,str], torch.Tensor] = {}
         self._current_cached_track: Optional[int] = None
-        # Update global config
-        USER_INPUT = {
-            "sample_rate": sample_rate,
-            "duration": duration,
-            "input_name": input_name,
-            "perriferal_name": perriferal_name,
-            "is_track_id": is_track_id,
-            "audio_dir": audio_dir,
-            "components": components,
-            "csv_file": csv_file,
-            "n_fft": n_fft,
-            "hop_length": hop_length,
-            "wav_length":self.wav_length,
-            "cache_dir_path" : self.cache_dir,
-            "db_filename" : cache_db_name,
 
-        } 
-        GI.update_config(**USER_INPUT)
-  
+        GI.update_config(wav_length=self.wav_length,cache_dir_path=self.cache_dir,db_filename=cache_db_name)
+
     def _create_db(self):
         c = self.db.cursor()
         c.execute(

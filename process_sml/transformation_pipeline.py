@@ -24,6 +24,8 @@ class MyPipeline(nn.Module):
                  input_name : typing.Optional[str] = None,
                  perriferal_name: typing.Optional[typing.List[str]] = None,
                  shape_of_first_wav_tensor : torch.Size = None,
+                 n_fft :int = 2048,
+                 hop_length :int =512,
                  ):
         """
         A unified pipeline that applies both waveform- and spectrogram-level transforms.
@@ -39,6 +41,8 @@ class MyPipeline(nn.Module):
         self.shape_of_first_nontransformed_spec_sample = shape_of_untransformed_size
         self.input_name =input_name
         self.perriferal_name = perriferal_name
+        self.n_fft = n_fft
+        self.hop_length = hop_length
 
         # If user passed None, skip transforms entirely
         self.wav_transforms = wav_transforms  # keep None to skip
@@ -52,7 +56,7 @@ class MyPipeline(nn.Module):
             t for t in self.spec_transforms if not isinstance(t, RandomTimeStretch_spec)
         ]
         self._use_complex = bool(self._complex_transforms)
-        self.melscale_transform = torchaudio.transforms.MelScale(sample_rate=GI.SAMPLE_RATE, n_stft=GI.N_FFT // 2 + 1)
+        # self.melscale_transform = torchaudio.transforms.MelScale(n_mels=128,sample_rate=GI.SAMPLE_RATE, n_stft=GI.N_FFT // 2 + 1)
 
     def forward(self, waveform: torch.Tensor, component: str ) -> torch.Tensor:
         """
@@ -72,9 +76,10 @@ class MyPipeline(nn.Module):
             self.perriferal_name is None or component not in self.perriferal_name
         ):
             waveform = to_stereo(waveform)
-            full_spec = compute_spectrogram(waveform)
+            full_spec = compute_spectrogram(waveform,n_fft=self.n_fft,hop_length=self.hop_length)
             spec = full_spec.abs()
-            spec = self.melscale_transform(spec)
+            # angle = full_spec.angle()
+            # spec = self.melscale_transform(spec)
 
             return spec
 
@@ -84,12 +89,12 @@ class MyPipeline(nn.Module):
 
         # Compute spectrogram and apply complex transforms if any
         if self._use_complex:
-            complex_spec = compute_spectrogram(waveform)
+            complex_spec = compute_spectrogram(waveform,n_fft=self.n_fft,hop_length=self.hop_length)
             for t in self._complex_transforms:
                 complex_spec = t(complex_spec)
             spec = complex_spec.abs()
         else:
-            full_spec = compute_spectrogram(waveform)
+            full_spec = compute_spectrogram(waveform,n_fft=self.n_fft,hop_length=self.hop_length)
             spec = full_spec.abs()
 
         # Apply real-only spectrogram transforms
@@ -102,5 +107,5 @@ class MyPipeline(nn.Module):
             spec = adjust_spec_shape(spec, target)
 
         # Concatenate magnitude and phase
-        spec = self.melscale_transform(spec)
+        # spec = self.melscale_transform(spec)
         return spec

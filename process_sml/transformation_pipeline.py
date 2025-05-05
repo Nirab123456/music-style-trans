@@ -2,7 +2,7 @@ import torch
 import torchaudio
 import torch.nn as nn
 
-from .transformation_utlis import compute_spectrogram, to_stereo, adjust_phase_shape, adjust_spec_shape
+from .transformation_utlis import to_stereo, adjust_phase_shape, adjust_spec_shape
 from .spec_transform import (
     RandomFrequencyMasking_spec,
     RandomTimeMasking_spec,

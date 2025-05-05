@@ -12,28 +12,15 @@ def to_stereo(waveform: torch.Tensor) -> torch.Tensor:
     """Ensure the waveform is stereo (2 channels). If mono, duplicate the channel."""
     return waveform.repeat(2, 1) if waveform.size(0) == 1 else waveform[:2]
 
-# we can also add additional arguments to compute_spectrogram
-def compute_spectrogram(
-    waveform: torch.Tensor,
-    n_fft: int = None,
-    hop_length: int = None,
-    power : float = None,
-    normalized : bool = False,
-    window : torch.Tensor = None,
-) -> torch.Tensor:
-    """Compute the magnitude spectrogram using torchaudio.functional.spectrogram."""
+def reconstruction_from_four_channel(spec):
+    C = spec.size(0) // 2           # 4 // 2 == 2
+    mag   = spec[0:C,  :,  :]       # → [2, 1025, 157]
+    phase = spec[C: ,  :,  :]       # → [2, 1025, 157]
+    complex_spec = torch.polar(mag, phase)
+    reconstruction = reconstruct_waveform(complex_spec)
+    return reconstruction
 
-    spec = torchaudio.functional.spectrogram(
-        waveform=waveform,
-        pad=0,
-        window=window,
-        n_fft=n_fft,
-        hop_length=hop_length,
-        win_length=n_fft,
-        power=power,  
-        normalized=normalized,
-    )
-    return spec  # .abs() or .abs()**2 for power
+
 
 def compute_waveform_griffinlim(
     mag_spec: torch.Tensor,

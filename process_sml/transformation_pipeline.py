@@ -1,111 +1,127 @@
-# my_pipeline.py
 import torch
 import torch.nn as nn
-import typing 
 
-
-# Import helper functions and individual transform classes.
-from .transformation_utlis import compute_spectrogram, to_stereo , adjust_phase_shape, adjust_spec_shape 
-
+from .transformation_utlis import compute_spectrogram, to_stereo, adjust_phase_shape, adjust_spec_shape
 from .spec_transform import (
     RandomFrequencyMasking_spec,
     RandomTimeMasking_spec,
     RandomTimeStretch_spec
 )
-import torchaudio
-import configarations.global_initial_config as GI
 
 
 class MyPipeline(nn.Module):
-    def __init__(self,
-                 wav_transforms: nn.Module = None,
-                 spec_transforms: nn.Module = None,
-                 shape_of_untransformed_size:torch.Size = None,
-                 input_name : typing.Optional[str] = None,
-                 perriferal_name: typing.Optional[typing.List[str]] = None,
-                 shape_of_first_wav_tensor : torch.Size = None,
-                 n_fft :int = 2048,
-                 hop_length :int =512,
-                 ):
+    def __init__(
+        self,
+        wav_transforms: nn.Module = None,
+        spec_transforms: nn.Module = None,
+        shape_of_untransformed_size: torch.Size = None,
+        input_name: str = None,
+        peripheral_names: list[str] = None,
+        n_fft: int = 2048,
+        hop_length: int = 512,
+        input_transformation: str = "2-SPEC",
+        rest_transformation: str = "2-SPEC",
+    ):
         """
         A unified pipeline that applies both waveform- and spectrogram-level transforms.
-        
+
         Args:
-            use_complex_for_time_stretch (bool): If True, compute a complex spectrogram
-                for transforms that require phase (e.g., time stretching).
-            stft_params (dict): Parameters for computing the STFT (n_fft, hop_length, window).
-            wav_transforms (nn.Module, optional): A module or sequential chain of waveform-level transforms.
-            spec_transforms (nn.Module, optional): A module or sequential chain of spectrogram-level transforms.
+            wav_transforms: waveform-level transforms module (or None to skip).
+            spec_transforms: spectrogram-level transforms (or None to skip).
+            shape_of_untransformed_size: target spec shape for resizing.
+            input_name: name of the primary component.
+            peripheral_names: list of other component names to treat like input.
+            n_fft: FFT size for spectrogram.
+            hop_length: hop length for spectrogram.
+            input_transformation: one of ['WAV', '2-SPEC', '4-SPEC'] for input component.
+            rest_transformation: one of ['WAV', '2-SPEC', '4-SPEC'] for  peripheral components.
         """
-        super(MyPipeline, self).__init__()
-        self.shape_of_first_nontransformed_spec_sample = shape_of_untransformed_size
-        self.input_name =input_name
-        self.perriferal_name = perriferal_name
+        super().__init__()
+        self.input_transformation = input_transformation
+        self.rest_transformation = rest_transformation
+        self.shape_of_spec = shape_of_untransformed_size
+        self.input_name = input_name
+        self.peripheral_names = peripheral_names or []
         self.n_fft = n_fft
         self.hop_length = hop_length
 
-        # If user passed None, skip transforms entirely
-        self.wav_transforms = wav_transforms  # keep None to skip
-        self.spec_transforms = list(spec_transforms) if spec_transforms is not None else []
+        self.wav_transforms = wav_transforms
+        self.spec_transforms = list(spec_transforms) if spec_transforms else []
 
-        # Separate transforms into complex-only and real-only lists
-        self._complex_transforms = [
+        # split complex (time-stretch) vs. real-only transforms
+        self.complex_transforms = [
             t for t in self.spec_transforms if isinstance(t, RandomTimeStretch_spec)
         ]
-        self._real_transforms = [
+        self.real_transforms = [
             t for t in self.spec_transforms if not isinstance(t, RandomTimeStretch_spec)
         ]
-        self._use_complex = bool(self._complex_transforms)
-        # self.melscale_transform = torchaudio.transforms.MelScale(n_mels=128,sample_rate=GI.SAMPLE_RATE, n_stft=GI.N_FFT // 2 + 1)
+        self.use_complex = bool(self.complex_transforms)
 
-    def forward(self, waveform: torch.Tensor, component: str ) -> torch.Tensor:
-        """
-        Applies the following steps:
-          1. Waveform transforms (e.g., pitch shift, volume, noise).
-          2. Compute a spectrogram (complex if required for time stretching).
-          3. Spectrogram transforms (e.g., masking, time stretching).
-        
-        Args:
-            waveform (torch.Tensor): Input tensor of shape (channels, time).
-        
-        Returns:
-            torch.Tensor: The final transformed spectrogram.
-        """
-        # Bypass if not target component
-        if component != self.input_name and (
-            self.perriferal_name is None or component not in self.perriferal_name
-        ):
-            waveform = to_stereo(waveform)
-            full_spec = compute_spectrogram(waveform,n_fft=self.n_fft,hop_length=self.hop_length)
-            spec = full_spec.abs()
-            # angle = full_spec.angle()
-            # spec = self.melscale_transform(spec)
+    def forward(self, waveform: torch.Tensor, component: str) -> torch.Tensor:
+        # determine if we process transforms or bypass
+        is_input = component == self.input_name
+        is_peripheral = component in self.peripheral_names
+        if not (is_input or is_peripheral):
+            return self._bypass(waveform)
 
-            return spec
+        # apply waveform-level transforms
+        if self.wav_transforms:
+            waveform = self.wav_transforms(waveform)
 
-        # Apply waveform transforms if provided
-        if self.wav_transforms is not None:
-            waveform = self.wav_transforms(waveform)  # type: ignore
+        # choose which transformation setting to use
+        transform_type = (
+            self.input_transformation if is_input else self.rest_transformation
+        )
+        if transform_type == "WAV":
+            return waveform
 
-        # Compute spectrogram and apply complex transforms if any
-        if self._use_complex:
-            complex_spec = compute_spectrogram(waveform,n_fft=self.n_fft,hop_length=self.hop_length)
-            for t in self._complex_transforms:
-                complex_spec = t(complex_spec)
-            spec = complex_spec.abs()
+        # compute complex spectrogram if needed
+        if self.use_complex:
+            spec_complex = compute_spectrogram(
+                waveform, n_fft=self.n_fft, hop_length=self.hop_length
+            )
+            for t in self.complex_transforms:
+                spec_complex = t(spec_complex)
         else:
-            full_spec = compute_spectrogram(waveform,n_fft=self.n_fft,hop_length=self.hop_length)
-            spec = full_spec.abs()
+            spec_complex = compute_spectrogram(
+                waveform, n_fft=self.n_fft, hop_length=self.hop_length
+            )
 
-        # Apply real-only spectrogram transforms
-        for t in self._real_transforms:
+        # magnitude and optional phase
+        spec = spec_complex.abs()
+        phase = spec_complex.angle() if transform_type == "4-SPEC" else None
+
+        # apply real-only spectrogram transforms on magnitude
+        for t in self.real_transforms:
             spec = t(spec)
 
-        # Adjust shapes if needed
-        if self.shape_of_first_nontransformed_spec_sample is not None:
-            target = self.shape_of_first_nontransformed_spec_sample[-2:]
+        # resize if a target shape is provided
+        if self.shape_of_spec is not None:
+            target = self.shape_of_spec[-2:]
             spec = adjust_spec_shape(spec, target)
+            if phase is not None:
+                phase = adjust_phase_shape(phase, target)
 
-        # Concatenate magnitude and phase
-        # spec = self.melscale_transform(spec)
-        return spec
+        # return according to type
+        if transform_type == "2-SPEC":
+            return spec
+        if transform_type == "4-SPEC":
+            return torch.cat((spec, phase), dim=0)
+
+        raise ValueError(f"Unknown transformation type: {transform_type}")
+
+    def _bypass(self, waveform: torch.Tensor) -> torch.Tensor:
+        # stereo conversion and basic spectrogram without any transforms
+        waveform = to_stereo(waveform)
+        spec_complex = compute_spectrogram(
+            waveform, n_fft=self.n_fft, hop_length=self.hop_length
+        )
+        spec = spec_complex.abs()
+        t = self.rest_transformation
+        if t == "2-SPEC":
+            return spec
+        if t == "4-SPEC":
+            return torch.cat((spec, spec_complex.angle()), dim=0)
+        if t == "WAV":
+            return waveform
+        raise ValueError(f"Unknown rest_transformation: {t}")

@@ -44,7 +44,7 @@ class AudioDatasetFolder(Dataset):
         components: List[str] = None,
         sample_rate: int = 16000,
         duration: float = 20.0,
-        input_name: Optional[str] = None,
+        input_name: str = None,
         perriferal_name: Optional[List[str]] = None,
         wav_transform: Optional[Union[Callable[[torch.Tensor], torch.Tensor],
                                      List[Callable[[torch.Tensor], torch.Tensor]]]] = None,
@@ -55,7 +55,20 @@ class AudioDatasetFolder(Dataset):
         hop_length: int = 32,
         cache_dir : str = ".cache_chunks",
         cache_db_name : str = "index.db",
+        input_transformation : str = "2-SPEC",
+        rest_transformation : str = "2-SPEC",
     ) -> None:
+        self.all_transformations = ["2-SPEC","4-SPEC","WAV"]
+        if input_transformation in self.all_transformations:
+            self.input_transformation = input_transformation
+        else:
+            raise(ValueError(f"{input_transformation} is not a valid transformation for this AudioDatasetFolder."))
+
+        if rest_transformation in self.all_transformations:
+            self.rest_transformation = rest_transformation
+        else:
+            raise(ValueError(f"{rest_transformation} is not a valid transformation for this AudioDatasetFolder."))
+
         # Basic config
         self.sample_rate = sample_rate
         self.duration = duration
@@ -136,9 +149,11 @@ class AudioDatasetFolder(Dataset):
             wav_transforms=wav_transform,
             shape_of_untransformed_size=self.spec_shape,
             input_name=input_name,
-            perriferal_name=perriferal_name,
+            peripheral_names=perriferal_name,
             n_fft=n_fft,
             hop_length=hop_length,
+            input_transformation=self.input_transformation,
+            rest_transformation= self.rest_transformation,
         )
 
         # 5) In-memory cache of loaded .pt per (track_idx, component)

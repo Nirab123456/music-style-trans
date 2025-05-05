@@ -18,20 +18,10 @@ def compute_spectrogram(
     n_fft: int = None,
     hop_length: int = None,
     power : float = None,
-    normalized : bool = False
+    normalized : bool = False,
+    window : torch.Tensor = None,
 ) -> torch.Tensor:
     """Compute the magnitude spectrogram using torchaudio.functional.spectrogram."""
-    if n_fft == None:
-        n_fft = GI.N_FFT
-    if hop_length == None:
-        hop_length = GI.HOP_LENGTH
-
-
-    if GI.WINDOW_CPU != None:
-        window = GI.WINDOW_CPU
-    else:
-        window = torch.hann_window(n_fft, device=waveform.device)
-    
 
     spec = torchaudio.functional.spectrogram(
         waveform=waveform,
@@ -57,12 +47,6 @@ def compute_waveform_griffinlim(
         n_fft = GI.N_FFT
     if hop_length == None:
         hop_length = GI.HOP_LENGTH
-
-    # print(f"N_fft is {n_fft}")
-    # print(f"hop length is {hop_length}")
-
-
-
     window = torch.hann_window(n_fft).to(mag_spec.device)
 
     spec_power = mag_spec ** 2  # Griffin-Lim uses power spectrogram
@@ -231,17 +215,25 @@ def adjust_spec_shape(spec: torch.Tensor, target_shape: Tuple[int, int]) -> torc
     # Remove the added batch dimension
     return spec_adjusted.squeeze(0)
 
-def get_shape_first_sample(waveform):
+def get_shape_first_sample(waveform,hnn_window_cpu,n_fft,hop_length):
     waveform = to_stereo(waveform)
     wav_shape = waveform.shape
     #in 0th indaxing we want the size of first index [2,x]-> we want x first index 2 because we ensured stereo
     length = wav_shape[1]
-    spec = compute_spectrogram(waveform)
+    spec = torchaudio.functional.spectrogram(
+                    waveform=waveform,
+                    pad=0,
+                    window=hnn_window_cpu,
+                    n_fft=n_fft,
+                    hop_length=hop_length,
+                    power=None,  
+                    normalized=False,
+                    win_length=n_fft,
+                )
     spec = spec.abs()
     shape = spec.shape
 
-    return shape,length
-    
+    return shape , length
 
 
 # ------------------------------

@@ -10,10 +10,9 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset
 import torchaudio
 import torchaudio.transforms as T
-from .transformation_utlis import get_shape_first_sample
 from .transformation_pipeline import MyPipeline
 import configarations.global_initial_config as GI
-
+from .transformation_utlis import get_shape_first_sample
 class SimpleAudioIO:
     def __init__(self):
         self._resamplers: Dict[Tuple[int,int], T.Resample] = {}
@@ -79,6 +78,7 @@ class AudioDatasetFolder(Dataset):
         self.components = components or []
         self.chunk_len = int(self.sample_rate * self.duration)
         self.audio_io = SimpleAudioIO()
+        self.hnn_window_cpu = torch.hann_window(n_fft, device="cpu")
 
         # Update global config
         USER_INPUT = {
@@ -143,19 +143,20 @@ class AudioDatasetFolder(Dataset):
         first_track, first_chunk_idx = self.index_map[0]
         cache0 = torch.load(self._get_cache_path(first_track, self.components[0]))
         first_chunk = cache0[first_chunk_idx]
-        self.spec_shape , self.wav_length = get_shape_first_sample(first_chunk)
+        self.spec_shape , self.wav_length = get_shape_first_sample(waveform=first_chunk,hnn_window_cpu=self.hnn_window_cpu,n_fft=n_fft,hop_length=hop_length)
         self.pipeline = MyPipeline(
             spec_transforms=spec_transform,
             wav_transforms=wav_transform,
-            shape_of_untransformed_size=self.spec_shape,
             input_name=input_name,
             peripheral_names=perriferal_name,
             n_fft=n_fft,
             hop_length=hop_length,
             input_transformation=self.input_transformation,
             rest_transformation= self.rest_transformation,
+            shape_of_untransformed_size = self.spec_shape,
+            hnn_window_cpu=self.hnn_window_cpu,
+            
         )
-
         # 5) In-memory cache of loaded .pt per (track_idx, component)
         self._loaded_tracks: Dict[Tuple[int,str], torch.Tensor] = {}
         self._current_cached_track: Optional[int] = None

@@ -57,7 +57,7 @@ dataset_train = AudioDatasetFolder(
     spec_transform=argS,  # list of transforms
     wav_transform=argW,
     is_track_id=True,
-    input_name= "mixture"
+    input_name= "mixture",
 )
 dataset_val = AudioDatasetFolder(
     csv_file='output_stems/test.csv',

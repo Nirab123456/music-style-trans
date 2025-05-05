@@ -1,4 +1,5 @@
 import torch
+import torchaudio
 import torch.nn as nn
 
 from .transformation_utlis import compute_spectrogram, to_stereo, adjust_phase_shape, adjust_spec_shape
@@ -21,6 +22,7 @@ class MyPipeline(nn.Module):
         hop_length: int = 512,
         input_transformation: str = "2-SPEC",
         rest_transformation: str = "2-SPEC",
+        hnn_window_cpu : torch.Tensor = None,
     ):
         """
         A unified pipeline that applies both waveform- and spectrogram-level transforms.
@@ -39,7 +41,6 @@ class MyPipeline(nn.Module):
         super().__init__()
         self.input_transformation = input_transformation
         self.rest_transformation = rest_transformation
-        self.shape_of_spec = shape_of_untransformed_size
         self.input_name = input_name
         self.peripheral_names = peripheral_names or []
         self.n_fft = n_fft
@@ -56,6 +57,10 @@ class MyPipeline(nn.Module):
             t for t in self.spec_transforms if not isinstance(t, RandomTimeStretch_spec)
         ]
         self.use_complex = bool(self.complex_transforms)
+        self.hnn_window_cpu = hnn_window_cpu
+        self.shape_of_spec = shape_of_untransformed_size
+
+
 
     def forward(self, waveform: torch.Tensor, component: str) -> torch.Tensor:
         # determine if we process transforms or bypass
@@ -77,15 +82,29 @@ class MyPipeline(nn.Module):
 
         # compute complex spectrogram if needed
         if self.use_complex:
-            spec_complex = compute_spectrogram(
-                waveform, n_fft=self.n_fft, hop_length=self.hop_length
-            )
+            spec_complex = torchaudio.functional.spectrogram(
+                    waveform=waveform,
+                    pad=0,
+                    window=self.hnn_window_cpu,
+                    n_fft=self.n_fft,
+                    hop_length=self.hop_length,
+                    power=None,  
+                    normalized=False,
+                    win_length=self.n_fft,
+                )
             for t in self.complex_transforms:
                 spec_complex = t(spec_complex)
         else:
-            spec_complex = compute_spectrogram(
-                waveform, n_fft=self.n_fft, hop_length=self.hop_length
-            )
+            spec_complex = torchaudio.functional.spectrogram(
+                    waveform=waveform,
+                    pad=0,
+                    window=self.hnn_window_cpu,
+                    n_fft=self.n_fft,
+                    hop_length=self.hop_length,
+                    power=None,  
+                    normalized=False,
+                    win_length=self.n_fft,
+                )
 
         # magnitude and optional phase
         spec = spec_complex.abs()
@@ -113,9 +132,16 @@ class MyPipeline(nn.Module):
     def _bypass(self, waveform: torch.Tensor) -> torch.Tensor:
         # stereo conversion and basic spectrogram without any transforms
         waveform = to_stereo(waveform)
-        spec_complex = compute_spectrogram(
-            waveform, n_fft=self.n_fft, hop_length=self.hop_length
-        )
+        spec_complex = torchaudio.functional.spectrogram(
+                waveform=waveform,
+                pad=0,
+                window=self.hnn_window_cpu,
+                n_fft=self.n_fft,
+                hop_length=self.hop_length,
+                power=None,  
+                normalized=False,
+                win_length=self.n_fft,
+            )
         spec = spec_complex.abs()
         t = self.rest_transformation
         if t == "2-SPEC":
@@ -125,3 +151,4 @@ class MyPipeline(nn.Module):
         if t == "WAV":
             return waveform
         raise ValueError(f"Unknown rest_transformation: {t}")
+

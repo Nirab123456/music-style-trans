@@ -5,4 +5,4 @@ from .presave_big_noise_tensor import save_big_noise_spec_meg_tensor
 from .wav_transform_utils import RandomPitchShift_wav,RandomVolume_wav,RandomAbsoluteNoise_wav,RandomSpeed_wav,RandomFade_wav
 from .spec_transform import RandomFrequencyMasking_spec,RandomTimeMasking_spec,RandomTimeStretch_spec
 from .transformation_pipeline import MyPipeline
-from .pghi_ext import pghi_torch
+from .sdct_ext import stdct,istdct

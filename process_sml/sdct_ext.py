@@ -136,5 +136,5 @@ def istdct(coeffs: torch.Tensor,
     if out.size(1) > length:
         out = out[:, :length]
     elif out.size(1) < length:
-        out = F.pad(out, (0, length - out.size(1)))
+        out = torch.nn.functional.pad(out, (0, length - out.size(1)))
     return out

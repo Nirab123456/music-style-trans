@@ -8,7 +8,7 @@ from .spec_transform import (
     RandomTimeMasking_spec,
     RandomTimeStretch_spec
 )
-
+from .sdct_ext import stdct,istdct
 
 class MyPipeline(nn.Module):
     def __init__(
@@ -79,6 +79,23 @@ class MyPipeline(nn.Module):
         )
         if transform_type == "WAV":
             return waveform
+
+
+        # --- NEW 2‑STDC branch: real‐only DCT “spectrogram” ---
+        if transform_type == "2-STDC":
+            # 1) frame + window + DCT
+            coeffs = stdct(
+                waveform,
+                n_fft=self.n_fft,
+                hop_length=self.hop_length,
+                window=self.hnn_window_cpu,
+                norm=None
+            )                           # (batch, n_frames, n_fft)
+            # 2) any “real” spec transforms
+            for t in self.real_transforms:
+                coeffs = t(coeffs)
+            return coeffs
+
 
         # compute complex spectrogram if needed
         if self.use_complex:

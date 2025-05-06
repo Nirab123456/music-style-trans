@@ -50,14 +50,14 @@ class AudioDatasetFolder(Dataset):
         spec_transform: Optional[Union[Callable[[torch.Tensor], torch.Tensor],
                                      List[Callable[[torch.Tensor], torch.Tensor]]]] = None,
         is_track_id: bool = True,
-        n_fft: int = 256,
-        hop_length: int = 32,
+        n_fft: int = 512,
+        hop_length: int = 128,
         cache_dir : str = ".cache_chunks",
         cache_db_name : str = "index.db",
         input_transformation : str = "2-SPEC",
         rest_transformation : str = "2-SPEC",
     ) -> None:
-        self.all_transformations = ["2-SPEC","4-SPEC","WAV"]
+        self.all_transformations = ["2-SPEC","4-SPEC","WAV","2-STDC"]
         if input_transformation in self.all_transformations:
             self.input_transformation = input_transformation
         else:

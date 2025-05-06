@@ -58,6 +58,8 @@ dataset_train = AudioDatasetFolder(
     wav_transform=argW,
     is_track_id=True,
     input_name= "mixture",
+    input_transformation="2-SPEC",
+    rest_transformation="WAV",
 )
 dataset_val = AudioDatasetFolder(
     csv_file='output_stems/test.csv',
@@ -111,7 +113,7 @@ if __name__ == '__main__':
         model=model,
         train_dataset=dataset_train,
         val_dataset=dataset_val,
-        batch_size=8,
+        batch_size=4,
         criterion=criterion,
         optimizer=optimizer,
         # scheduler=scheduler,
@@ -122,5 +124,6 @@ if __name__ == '__main__':
         input_name="mixture",  # use "mixture" for the input spectrogram from the batch
         label_names=label_names,  # list of target keys for separated sources
         print_freq=10,
-        # resume_checkpoint="checkpoints/checkpoint_epoch_41.pth",
+        resume_checkpoint=r"ALL_CKP\semi_success_ckp\n_fft256-HL-32.pth",
+        
     )

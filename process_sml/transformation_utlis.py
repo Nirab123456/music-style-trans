@@ -20,7 +20,66 @@ def reconstruction_from_four_channel(spec):
     reconstruction = reconstruct_waveform(complex_spec)
     return reconstruction
 
+def compute_waveform_griffinlim_B(
+    mag_spec: torch.Tensor,
+    n_fft: int = None,
+    hop_length: int = None,
+    num_iters: int = 120
+) -> torch.Tensor:
+    """
+    Reconstruct waveform(s) from magnitude spectrogram(s) using Griffin–Lim.
 
+    Args:
+        mag_spec: Tensor of shape (B, F, T) or (B, C, F, T).
+        n_fft: FFT size. If None, inferred as (F-1)*2.
+        hop_length: Hop length. If None, set to n_fft//4.
+        num_iters: Number of Griffin–Lim iterations.
+
+    Returns:
+        Tensor of waveforms with shape
+          - (B, signal_length) if mag_spec was 3-D
+          - (B, C, signal_length) if mag_spec was 4-D
+    """
+    # Unpack batch (and optional channel) dims
+    orig_shape = mag_spec.shape
+    if mag_spec.dim() == 4:
+        B, C, F, T = orig_shape
+        specs = mag_spec.view(B * C, F, T)
+    elif mag_spec.dim() == 3:
+        B, F, T = orig_shape
+        C = None
+        specs = mag_spec
+    else:
+        raise ValueError(f"mag_spec must be 3‑D or 4‑D, got {mag_spec.dim()}‑D")
+
+    # Infer FFT/hop_length if omitted
+    if n_fft is None:
+        n_fft = (F - 1) * 2
+    if hop_length is None:
+        hop_length = n_fft // 4
+
+    window = torch.hann_window(n_fft, device=mag_spec.device)
+    power_spec = specs.pow(2)
+
+    # Run Griffin–Lim in one batch call
+    waveforms = torchaudio.functional.griffinlim(
+        specgram=power_spec,
+        n_fft=n_fft,
+        win_length=n_fft,
+        hop_length=hop_length,
+        window=window,
+        power=2.0,
+        n_iter=num_iters,
+        momentum=0.99,
+        length=None,
+        rand_init=True,
+    )
+
+    # Reshape back to (B, C, T') if needed
+    if C is not None:
+        waveforms = waveforms.view(B, C, -1)
+
+    return waveforms
 
 def compute_waveform_griffinlim(
     mag_spec: torch.Tensor,
@@ -30,10 +89,7 @@ def compute_waveform_griffinlim(
 ) -> torch.Tensor:
     """Reconstruct waveform from magnitude spectrogram using Griffin-Lim."""
 
-    if n_fft == None:
-        n_fft = GI.N_FFT
-    if hop_length == None:
-        hop_length = GI.HOP_LENGTH
+
     window = torch.hann_window(n_fft).to(mag_spec.device)
 
     spec_power = mag_spec ** 2  # Griffin-Lim uses power spectrogram

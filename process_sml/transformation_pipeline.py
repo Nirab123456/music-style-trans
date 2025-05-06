@@ -167,5 +167,16 @@ class MyPipeline(nn.Module):
             return torch.cat((spec, spec_complex.angle()), dim=0)
         if t == "WAV":
             return waveform
+        if t == "2-STDC":
+                # DCT-based “spectrogram” on stereo signal
+                # waveform shape: (2, time) → stdct returns (2, n_frames, n_fft)
+                coeffs = stdct(
+                    waveform,
+                    n_fft=self.n_fft,
+                    hop_length=self.hop_length,
+                    window=self.hnn_window_cpu,
+                    norm=None
+                )
+                return coeffs
         raise ValueError(f"Unknown rest_transformation: {t}")
 

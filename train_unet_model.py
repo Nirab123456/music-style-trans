@@ -23,7 +23,7 @@ label_names = ["drums", "bass", "other_accompaniment", "vocals"]
 argS = Compose([
 
     #spec transformation 
-    RandomTimeStretch_spec(),
+    # RandomTimeStretch_spec(),
     #this two working properly together
     RandomFrequencyMasking_spec(),
     RandomTimeMasking_spec(),
@@ -58,8 +58,8 @@ dataset_train = AudioDatasetFolder(
     wav_transform=argW,
     is_track_id=True,
     input_name= "mixture",
-    input_transformation="2-SPEC",
-    rest_transformation="WAV",
+    input_transformation="2-STDC",
+    rest_transformation="2-STDC",
 )
 dataset_val = AudioDatasetFolder(
     csv_file='output_stems/test.csv',
@@ -68,8 +68,8 @@ dataset_val = AudioDatasetFolder(
     sample_rate=16000,
     duration=10.0,
     is_track_id=True,
-    input_name= "mixture",
-
+    input_transformation="2-STDC",
+    rest_transformation="2-STDC",
 )
 
 
@@ -113,7 +113,7 @@ if __name__ == '__main__':
         model=model,
         train_dataset=dataset_train,
         val_dataset=dataset_val,
-        batch_size=4,
+        batch_size=10,
         criterion=criterion,
         optimizer=optimizer,
         # scheduler=scheduler,
@@ -124,6 +124,6 @@ if __name__ == '__main__':
         input_name="mixture",  # use "mixture" for the input spectrogram from the batch
         label_names=label_names,  # list of target keys for separated sources
         print_freq=10,
-        resume_checkpoint=r"ALL_CKP\semi_success_ckp\n_fft256-HL-32.pth",
+        # resume_checkpoint=r"ALL_CKP\semi_success_ckp\n_fft256-HL-32.pth",
         
     )

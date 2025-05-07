@@ -1,13 +1,9 @@
 from typing import Any, Dict, List
-
-import torch
-import torch.nn as nn
-from typing import Any, Dict, List
-
 import torch
 import torch.nn as nn
 import torchvision.models as models
 import torchaudio
+import torch.nn.functional as F
 
 # -----------------------------------------------------------------------------
 # Model Definition: Simple UNet for Source Separation
@@ -186,4 +182,125 @@ class LiteResUNet(nn.Module):
             if out.shape[2:] != orig_size:
                 out = nn.functional.interpolate(out, size=orig_size, mode='bilinear', align_corners=False)
             outputs[name] = out
+        return outputs
+
+
+# --- 1) Depthwise-Separable conv block ---
+class SepConv(nn.Module):
+    def __init__(self, in_ch, out_ch, kernel_size=3, stride=1, padding=1):
+        super().__init__()
+        self.depthwise = nn.Conv2d(in_ch, in_ch, kernel_size, stride, padding,
+                                    groups=in_ch, bias=False)
+        self.pointwise = nn.Conv2d(in_ch, out_ch, 1, 1, 0, bias=False)
+        self.bn = nn.BatchNorm2d(out_ch)
+        self.act = nn.ReLU(inplace=True)
+
+    def forward(self, x):
+        x = self.depthwise(x)
+        x = self.pointwise(x)
+        x = self.bn(x)
+        return self.act(x)
+
+# --- 2) Inverted Residual block from MobileNetV2 ---
+class InvertedResidual(nn.Module):
+    def __init__(self, in_ch, out_ch, expand_ratio, stride):
+        super().__init__()
+        hidden_ch = in_ch * expand_ratio
+        self.use_res_connect = (stride == 1 and in_ch == out_ch)
+        layers = []
+        if expand_ratio != 1:
+            layers += [
+                nn.Conv2d(in_ch, hidden_ch, 1, 1, 0, bias=False),
+                nn.BatchNorm2d(hidden_ch),
+                nn.ReLU6(inplace=True)
+            ]
+        layers += [
+            nn.Conv2d(hidden_ch, hidden_ch, 3, stride, 1,
+                      groups=hidden_ch, bias=False),
+            nn.BatchNorm2d(hidden_ch),
+            nn.ReLU6(inplace=True),
+            nn.Conv2d(hidden_ch, out_ch, 1, 1, 0, bias=False),
+            nn.BatchNorm2d(out_ch)
+        ]
+        self.block = nn.Sequential(*layers)
+
+    def forward(self, x):
+        out = self.block(x)
+        return x + out if self.use_res_connect else out
+
+# --- 3) Multi-Branch Ultra-Lite UNet with independent decoders per source ---
+class MultiBranchUltraLiteUNet(nn.Module):
+    """
+    Ultra-lightweight UNet with:
+      - Shared MobileNetV2-like encoder
+      - Independent lightweight decoder per source
+    """
+    def __init__(self,
+                 source_names: List[str] = ['s0', 's1'],
+                 in_channels: int = 2,
+                 width_mult: float = 0.35):
+        super().__init__()
+        self.source_names = source_names
+        def c(ch): return max(1, int(ch * width_mult))
+
+        # -- Encoder (tiny MobileNetV2) --
+        self.stem = nn.Sequential(
+            nn.Conv2d(in_channels, c(16), 3, 2, 1, bias=False),
+            nn.BatchNorm2d(c(16)), nn.ReLU6(inplace=True)
+        )
+        self.inv1 = InvertedResidual(c(16),  c(24),  expand_ratio=1, stride=2)
+        self.inv2 = InvertedResidual(c(24),  c(32),  expand_ratio=6, stride=2)
+        self.inv3 = InvertedResidual(c(32),  c(64),  expand_ratio=6, stride=2)
+        self.inv4 = InvertedResidual(c(64),  c(96),  expand_ratio=6, stride=1)
+        self.inv5 = InvertedResidual(c(96), c(160), expand_ratio=6, stride=2)
+        enc_ch = [c(32), c(96), c(160)]  # skip2, skip4, bottleneck
+
+        # -- Per-source decoder networks --
+        self.decoders = nn.ModuleDict()
+        for name in source_names:
+            self.decoders[name] = nn.ModuleDict({
+                'up1': nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
+                'dec1': SepConv(enc_ch[2] + enc_ch[1], enc_ch[1]),
+                'up2': nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
+                'dec2': SepConv(enc_ch[1] + enc_ch[0], enc_ch[0]),
+                'up3': nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
+                'head': nn.Sequential(
+                    SepConv(enc_ch[0], enc_ch[0]//2),
+                    nn.Conv2d(enc_ch[0]//2, in_channels, 1)
+                )
+            })
+
+    def forward(self, x: torch.Tensor) -> Dict[str, torch.Tensor]:
+        # original spatial dims
+        orig_h, orig_w = x.size(2), x.size(3)
+        # -- Encoder --
+        x0 = self.stem(x)
+        x1 = self.inv1(x0)
+        x2 = self.inv2(x1)
+        x3 = self.inv3(x2)
+        x4 = self.inv4(x3)
+        x5 = self.inv5(x4)
+
+        outputs: Dict[str, torch.Tensor] = {}
+        # -- Per-source decoding --
+        for name, dec in self.decoders.items():
+            d = dec['up1'](x5)
+            if d.shape[2:] != x4.shape[2:]:
+                d = F.interpolate(d, size=x4.shape[2:], mode='bilinear', align_corners=False)
+            d = torch.cat([d, x4], dim=1)
+            d = dec['dec1'](d)
+
+            d = dec['up2'](d)
+            if d.shape[2:] != x2.shape[2:]:
+                d = F.interpolate(d, size=x2.shape[2:], mode='bilinear', align_corners=False)
+            d = torch.cat([d, x2], dim=1)
+            d = dec['dec2'](d)
+
+            d = dec['up3'](d)
+            out = dec['head'](d)
+            if out.shape[2:] != (orig_h, orig_w):
+                out = F.interpolate(out, size=(orig_h, orig_w),
+                                    mode='bilinear', align_corners=False)
+            outputs[name] = out
+
         return outputs

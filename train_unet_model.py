@@ -12,7 +12,7 @@ from process_sml import (
     AudioDatasetFolder, Compose,
     RandomPitchShift_wav,RandomVolume_wav,RandomAbsoluteNoise_wav,RandomSpeed_wav,RandomFade_wav,RandomFrequencyMasking_spec,RandomTimeMasking_spec,RandomTimeStretch_spec)
 # Import the UNet model and the training function from the training module.
-from train_sml import UNet, train_model_source_separation,LiteResUNet
+from train_sml import UNet, train_model_source_separation,LiteResUNet,MultiBranchUltraLiteUNet
 import torch.nn as nn
 
 # Define the component map for the dataset.
@@ -52,7 +52,7 @@ dataset_train = AudioDatasetFolder(
     csv_file='output_stems/train.csv',
     audio_dir='.',  # adjust as needed
     components=COMPONENT_MAP,
-    sample_rate=16000,
+    sample_rate=8000,
     duration=10.0,
     spec_transform=argS,  # list of transforms
     wav_transform=argW,
@@ -65,7 +65,7 @@ dataset_val = AudioDatasetFolder(
     csv_file='output_stems/test.csv',
     audio_dir='.',  # adjust as needed
     components=COMPONENT_MAP,
-    sample_rate=16000,
+    sample_rate=8000,
     duration=10.0,
     is_track_id=True,
     input_transformation="2-STDC",
@@ -86,7 +86,9 @@ dataset_val = AudioDatasetFolder(
 # for key in label_names:
 #     model.final_convs[key] = nn.Conv2d(16, 2, kernel_size=1)
 
-model = LiteResUNet(backbone="resnet18",source_names=label_names,pretrained=True,in_channels=2)
+model = MultiBranchUltraLiteUNet(source_names=label_names,in_channels=2)
+
+# model = LiteResUNet(backbone="resnet18",source_names=label_names,pretrained=True,in_channels=2)
 
 
 # IMPORTANT: Move the entire model to the device after adding the final conv layers.

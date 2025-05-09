@@ -332,3 +332,4 @@ class MultiBranchUltraLiteUNet(nn.Module):
             outputs[name] = out
 
         return outputs
+    

@@ -24,11 +24,15 @@ from torch.utils.data import DataLoader, Dataset
 from torch.utils.tensorboard import SummaryWriter
 from process_sml import batch_reconstruct_waveform,compute_waveform_griffinlim_B
 import torchaudio
+from torch.optim.lr_scheduler import LambdaLR
+import math
 
 
 # -----------------------------------------------------------------------------
 # Training Function for Source Separation
 # -----------------------------------------------------------------------------
+
+
 def train_model_source_separation(
     model: nn.Module,
     train_dataset: Dataset,
@@ -76,6 +80,12 @@ def train_model_source_separation(
     best_loss = float('inf')
     best_wts = copy.deepcopy(model.state_dict())
 
+    def lr_lambda(step):
+        if step < warmup_steps:
+            return step / max(1, warmup_steps)
+        progress = (step - warmup_steps) / max(1, total_steps - warmup_steps)
+        return 0.5 * (1.0 + math.cos(math.pi * progress))
+    
     # Load checkpoint if resuming
     if resume_checkpoint and os.path.isfile(resume_checkpoint):
         print(f"Loading checkpoint '{resume_checkpoint}' to resume...")
@@ -93,6 +103,8 @@ def train_model_source_separation(
 
     model.to(device)
 
+
+
     # Data loaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
@@ -102,6 +114,10 @@ def train_model_source_separation(
     # Set up TensorBoard
     os.makedirs(log_dir, exist_ok=True)
     writer = SummaryWriter(log_dir)
+    total_steps  = num_epochs * len(train_loader)
+    warmup_steps = int(0.1 * total_steps)
+    if scheduler == None:
+        scheduler = LambdaLR(optimizer, lr_lambda)
 
     # Main training loop
     for epoch in range(start_epoch + 1, num_epochs + 1):
@@ -117,6 +133,8 @@ def train_model_source_separation(
 
             for batch_idx, batch in enumerate(loader):
                 # Input
+                global_step = (epoch - 1) * len(train_loader) + batch_idx
+
                 x = batch[input_name]
                 if x.ndim == 3:
                     x = x.unsqueeze(0)
@@ -126,9 +144,16 @@ def train_model_source_separation(
                 y_dict = {k: batch[k].to(device) for k in label_names}
 
                 optimizer.zero_grad()
+                source_losses = {}
                 with torch.set_grad_enabled(is_train):
                     outputs = model(x)
-                    loss = sum(criterion(outputs[k], y_dict[k]) for k in label_names)
+
+                    for source in label_names:
+                        source_losses[source] = criterion(outputs[source], y_dict[source])
+
+                    loss = sum(source_losses.values())
+                    for source, l in source_losses.items():
+                        writer.add_scalar(f"{phase}/{source}_loss", l.item(), global_step)
                     if is_train:
                         loss.backward()
                         optimizer.step()
@@ -184,6 +209,9 @@ def train_model_source_separation(
     # Load best model weights
     model.load_state_dict(best_wts)
     return model
+
+
+
 # -----------------------------------------------------------------------------
 # Testing Function for Source Separation
 # -----------------------------------------------------------------------------

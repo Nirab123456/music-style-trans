@@ -94,6 +94,11 @@ class MyPipeline(nn.Module):
             # 2) any “real” spec transforms
             for t in self.real_transforms:
                 coeffs = t(coeffs)
+
+            mean = coeffs.mean(dim=[1,2], keepdim=True)       # [C,1,1]
+            std  = coeffs.std(dim=[1,2], keepdim=True) + 1e-6 # avoid div by zero
+            coeffs = (coeffs - mean) / std
+
             return coeffs
 
 

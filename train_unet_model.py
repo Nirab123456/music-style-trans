@@ -60,6 +60,8 @@ dataset_train = AudioDatasetFolder(
     input_name= "mixture",
     input_transformation="2-STDC",
     rest_transformation="2-STDC",
+    n_fft=512,
+    hop_length=32,
 )
 dataset_val = AudioDatasetFolder(
     csv_file='output_stems/test.csv',
@@ -70,6 +72,9 @@ dataset_val = AudioDatasetFolder(
     is_track_id=True,
     input_transformation="2-STDC",
     rest_transformation="2-STDC",
+    input_name="mixture",
+    n_fft=512,
+    hop_length=32,
 )
 
 
@@ -100,8 +105,11 @@ model = model.to(device)
 # Use L1 loss for source separation.
 criterion = nn.L1Loss()
 # Create the optimizer using the model parameters.
-optimizer = optim.Adam(model.parameters(), lr=1e-3)
-# # Create a learning rate scheduler.
+optimizer = torch.optim.AdamW(
+    model.parameters(),
+    lr=1e-3,
+    weight_decay=1e-5
+)# # Create a learning rate scheduler.
 # scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 
 
@@ -119,13 +127,13 @@ if __name__ == '__main__':
         criterion=criterion,
         optimizer=optimizer,
         # scheduler=scheduler,
-        num_epochs=150,
+        num_epochs=25,
         device=device,
         log_dir='./logs',
         checkpoint_dir='./checkpoints',
         input_name="mixture",  # use "mixture" for the input spectrogram from the batch
         label_names=label_names,  # list of target keys for separated sources
         print_freq=10,
-        # resume_checkpoint=r"ALL_CKP\semi_success_ckp\n_fft256-HL-32.pth",
+        # resume_checkpoint=r"checkpoints\checkpoint_epoch_22.pth",
         
     )
